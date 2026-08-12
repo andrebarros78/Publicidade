@@ -1,8 +1,10 @@
 from fastapi import FastAPI, HTTPException
 from app.core.models import ActionRequest, Platform
 from app.service import execute, health_all, list_campaigns
+from app.autonomy import router as autonomy_router
 
-app = FastAPI(title="ADS-AI-HUB", version="0.1.0", description="API canônica multicanal para gestão de mídia paga por IA")
+app = FastAPI(title="ADS-AI-HUB", version="0.2.0", description="API canônica multicanal com núcleo autônomo multiagente")
+app.include_router(autonomy_router)
 
 @app.get("/health")
 async def health(): return await health_all()

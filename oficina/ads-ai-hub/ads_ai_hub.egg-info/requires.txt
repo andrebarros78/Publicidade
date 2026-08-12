@@ -2,6 +2,7 @@ fastapi<1,>=0.116
 uvicorn[standard]<1,>=0.35
 httpx<1,>=0.28
 pydantic<3,>=2.11
+openai-agents<1,>=0.8
 
 [test]
 pytest<9,>=8.4

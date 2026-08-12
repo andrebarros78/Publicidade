@@ -4,21 +4,22 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ads-ai-hub"
-version = "0.1.0"
+version = "0.2.0"
 description = "Hub multicanal seguro para Meta Ads e TikTok Ads controlado por IA"
 requires-python = ">=3.12"
 dependencies = [
   "fastapi>=0.116,<1",
   "uvicorn[standard]>=0.35,<1",
   "httpx>=0.28,<1",
-  "pydantic>=2.11,<3"
+  "pydantic>=2.11,<3",
+  "openai-agents>=0.8,<1"
 ]
 
 [project.optional-dependencies]
 test = ["pytest>=8.4,<9"]
 
 [tool.setuptools]
-packages = ["app", "app.adapters", "app.core"]
+packages = ["app", "app.adapters", "app.core", "agentic", "agentic.runtime", "agentic.digital_twin"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
