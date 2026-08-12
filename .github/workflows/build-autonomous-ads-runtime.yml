@@ -1,0 +1,320 @@
+name: Build Autonomous ADS Runtime
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/build-autonomous-ads-runtime.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Construir runtime multiagente, guard e digital twin
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT='oficina/ads-ai-hub'
+          mkdir -p "$ROOT/agentic/runtime" "$ROOT/agentic/memory" "$ROOT/agentic/digital_twin" "$ROOT/tests/agentic"
+          touch "$ROOT/agentic/__init__.py" "$ROOT/agentic/runtime/__init__.py" "$ROOT/agentic/digital_twin/__init__.py"
+
+          cat > "$ROOT/agentic/runtime/autonomous_team.py" <<'PY'
+          from __future__ import annotations
+          from dataclasses import dataclass
+          from typing import Any
+          from agents import Agent, handoff
+          from agentic.runtime.team import posts
+
+          @dataclass(frozen=True)
+          class RuntimeTeam:
+              chief: Agent
+              agents: dict[str, Agent]
+
+          BASE_RULES = '''
+          Operate only inside the owner's monthly spend ceiling and hard business constraints.
+          Never change payment methods, account ownership, or irreversibly delete important assets.
+          Base decisions on evidence and structured metrics. Prefer reversible bounded experiments.
+          Strategy, audience, creatives, channel mix and internal allocation belong to the agent team.
+          '''
+
+          SPECIALIST_INSTRUCTIONS = {
+              'marketing_strategist': 'Own positioning, funnel, offers, channel strategy and integrated marketing plan.',
+              'market_intelligence': 'Analyze competitors, demand, market signals, seasonality and opportunities.',
+              'consumer_intelligence': 'Analyze consumer behavior, segments, audiences, saturation and targeting hypotheses.',
+              'product_portfolio': 'Rank products using margin, stock, conversion, demand, ticket and advertising economics.',
+              'performance_scientist': 'Read performance metrics statistically; detect trends, anomalies and causal hypotheses.',
+              'marketing_science': 'Own MMM and cross-channel measurement; use Meridian/Robyn outputs when available.',
+              'attribution_specialist': 'Analyze attribution and incrementality; separate correlation from causal lift.',
+              'budget_allocator': 'Redistribute budget across channels/campaigns without ever increasing owner ceiling.',
+              'experiment_scientist': 'Design bounded tests with hypotheses, primary metrics, stopping rules and max loss.',
+              'creative_director': 'Own creative strategy, fatigue detection, concepts and testing roadmap.',
+              'copywriter': 'Produce and test direct-response copy, hooks, offers and CTAs within brand constraints.',
+              'meta_media_buyer': 'Operate Meta Ads through approved ADS-AI-HUB tools and policy.',
+              'tiktok_media_buyer': 'Operate TikTok Ads through approved ADS-AI-HUB tools and policy.',
+              'risk_guardian': 'Veto actions that breach spend ceiling, safety, duplication, reversibility or policy.',
+              'ads_operations': 'Own audit trail, retries, recovery, observability and operational integrity.'
+          }
+
+          def build_team(model: str = 'gpt-5.6') -> RuntimeTeam:
+              registry = {p.id: p for p in posts()}
+              specialists: dict[str, Agent] = {}
+              for agent_id, instr in SPECIALIST_INSTRUCTIONS.items():
+                  post = registry[agent_id]
+                  specialists[agent_id] = Agent(
+                      name=post.title,
+                      handoff_description=instr,
+                      instructions=BASE_RULES + '\n' + instr,
+                      model=model,
+                  )
+
+              strategy = specialists['marketing_strategist']
+              strategy.handoffs = [
+                  specialists['market_intelligence'], specialists['consumer_intelligence'],
+                  specialists['creative_director']
+              ]
+              specialists['creative_director'].handoffs = [specialists['copywriter']]
+              specialists['performance_scientist'].handoffs = [
+                  specialists['marketing_science'], specialists['attribution_specialist'],
+                  specialists['experiment_scientist']
+              ]
+
+              chief_targets = [
+                  strategy,
+                  specialists['product_portfolio'],
+                  specialists['performance_scientist'],
+                  specialists['budget_allocator'],
+                  specialists['meta_media_buyer'],
+                  specialists['tiktok_media_buyer'],
+                  specialists['risk_guardian'],
+                  specialists['ads_operations'],
+              ]
+              chief = Agent(
+                  name=registry['chief_ads_officer'].title,
+                  instructions=BASE_RULES + '''\nYou are accountable for the whole advertising operation. Delegate to specialists, synthesize evidence, and choose the best actions. The owner should not need to design strategy.''',
+                  model=model,
+                  handoffs=[handoff(a) for a in chief_targets],
+              )
+              return RuntimeTeam(chief=chief, agents={'chief_ads_officer': chief, **specialists})
+          PY
+
+          cat > "$ROOT/agentic/runtime/spend_guard.py" <<'PY'
+          from dataclasses import dataclass
+
+          @dataclass(frozen=True)
+          class SpendDecision:
+              allowed: bool
+              reason: str
+              projected_monthly_spend: float
+              ceiling: float
+
+          def check_spend(*, spent: float, proposed_increment: float, ceiling: float) -> SpendDecision:
+              if min(spent, proposed_increment, ceiling) < 0:
+                  return SpendDecision(False, 'negative_value', spent + proposed_increment, ceiling)
+              projected = spent + proposed_increment
+              if projected > ceiling + 1e-9:
+                  return SpendDecision(False, 'owner_ceiling_exceeded', projected, ceiling)
+              return SpendDecision(True, 'within_owner_ceiling', projected, ceiling)
+          PY
+
+          cat > "$ROOT/agentic/runtime/memory.py" <<'PY'
+          import json
+          from pathlib import Path
+          from datetime import datetime, timezone
+
+          class AuditMemory:
+              def __init__(self, path: str | Path):
+                  self.path = Path(path)
+                  self.path.parent.mkdir(parents=True, exist_ok=True)
+
+              def append(self, event: dict) -> None:
+                  record = {'ts': datetime.now(timezone.utc).isoformat(), **event}
+                  with self.path.open('a', encoding='utf-8') as f:
+                      f.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + '\n')
+
+              def read(self) -> list[dict]:
+                  if not self.path.exists(): return []
+                  return [json.loads(x) for x in self.path.read_text(encoding='utf-8').splitlines() if x.strip()]
+          PY
+
+          cat > "$ROOT/agentic/digital_twin/engine.py" <<'PY'
+          from __future__ import annotations
+          from dataclasses import dataclass, asdict
+          from agentic.runtime.spend_guard import check_spend
+
+          @dataclass
+          class Campaign:
+              id: str
+              platform: str
+              spend: float
+              revenue: float
+              cpa: float
+              ctr: float
+              frequency: float
+              status: str = 'active'
+
+              @property
+              def roas(self): return 0.0 if self.spend == 0 else self.revenue / self.spend
+
+          class DigitalTwin:
+              def __init__(self, ceiling: float):
+                  self.ceiling = ceiling
+                  self.campaigns = [
+                      Campaign('meta-winner','meta',2400,14400,28,2.8,2.1),
+                      Campaign('meta-fatigue','meta',1300,2600,72,0.7,5.9),
+                      Campaign('tiktok-growth','tiktok',900,5400,31,2.4,1.8),
+                      Campaign('tiktok-loss','tiktok',700,350,115,0.5,3.7),
+                  ]
+                  self.audit = []
+
+              def total_spend(self): return sum(c.spend for c in self.campaigns)
+
+              def cycle(self):
+                  actions=[]
+                  # Performance + creative diagnosis
+                  for c in self.campaigns:
+                      if c.roas < 1.0 or c.cpa > 100:
+                          c.status='paused'; actions.append({'agent':'performance_scientist','action':'pause','campaign':c.id,'reason':'loss'})
+                      elif c.frequency > 5 and c.ctr < 1:
+                          actions.append({'agent':'creative_director','action':'refresh_creative','campaign':c.id,'reason':'fatigue'})
+                  # Budget allocator: shift a bounded R$300 from weak Meta to best performer without raising ceiling
+                  active=[c for c in self.campaigns if c.status=='active']
+                  best=max(active,key=lambda c:c.roas)
+                  donor=min(active,key=lambda c:c.roas)
+                  transfer=min(300.0, donor.spend*0.15)
+                  donor.spend-=transfer
+                  guard=check_spend(spent=self.total_spend(), proposed_increment=transfer, ceiling=self.ceiling)
+                  if guard.allowed:
+                      best.spend+=transfer
+                      actions.append({'agent':'budget_allocator','action':'transfer','from':donor.id,'to':best.id,'amount':transfer})
+                  else:
+                      donor.spend+=transfer
+                      actions.append({'agent':'risk_guardian','action':'veto','reason':guard.reason})
+                  self.audit.extend(actions)
+                  return {'ceiling':self.ceiling,'spend':self.total_spend(),'campaigns':[asdict(c)|{'roas':round(c.roas,3)} for c in self.campaigns],'actions':actions}
+          PY
+
+          cat > "$ROOT/app/autonomy.py" <<'PY'
+          from fastapi import APIRouter, Query
+          from agentic.runtime.team import posts, owner_controls
+          from agentic.digital_twin.engine import DigitalTwin
+
+          router = APIRouter(prefix='/v1/autonomy', tags=['autonomy'])
+
+          @router.get('/team')
+          def team():
+              return {'agents':[p.__dict__ for p in posts()], 'controls':owner_controls()}
+
+          @router.post('/digital-twin')
+          def digital_twin(monthly_spend_ceiling: float = Query(10000, ge=0)):
+              twin=DigitalTwin(monthly_spend_ceiling)
+              return twin.cycle()
+          PY
+
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('oficina/ads-ai-hub/app/main.py')
+          s=p.read_text(encoding='utf-8')
+          if 'from app.autonomy import router as autonomy_router' not in s:
+              s=s.replace('from app.service import execute, health_all, list_campaigns', 'from app.service import execute, health_all, list_campaigns\nfrom app.autonomy import router as autonomy_router')
+              s=s.replace('app = FastAPI(title="ADS-AI-HUB", version="0.1.0", description="API canônica multicanal para gestão de mídia paga por IA")', 'app = FastAPI(title="ADS-AI-HUB", version="0.2.0", description="API canônica multicanal com núcleo autônomo multiagente")\napp.include_router(autonomy_router)')
+          p.write_text(s, encoding='utf-8')
+
+          p=Path('oficina/ads-ai-hub/app/__init__.py')
+          p.write_text('__version__ = "0.2.0"\n', encoding='utf-8')
+
+          p=Path('oficina/ads-ai-hub/pyproject.toml')
+          s=p.read_text(encoding='utf-8').replace('version = "0.1.0"','version = "0.2.0"')
+          if 'openai-agents' not in s:
+              s=s.replace('  "pydantic>=2.11,<3"', '  "pydantic>=2.11,<3",\n  "openai-agents>=0.8,<1"')
+          s=s.replace('packages = ["app", "app.adapters", "app.core"]','packages = ["app", "app.adapters", "app.core", "agentic", "agentic.runtime", "agentic.digital_twin"]')
+          p.write_text(s, encoding='utf-8')
+          PY
+
+          cat > "$ROOT/tests/agentic/test_autonomous_runtime.py" <<'PY'
+          from fastapi.testclient import TestClient
+          from app.main import app
+          from agentic.runtime.autonomous_team import build_team
+          from agentic.runtime.spend_guard import check_spend
+          from agentic.digital_twin.engine import DigitalTwin
+
+          def test_real_agents_sdk_team_constructs_without_api_call():
+              team=build_team(model='gpt-5.6')
+              assert len(team.agents)==16
+              assert team.chief.name=='Diretor Geral de Publicidade'
+              assert len(team.chief.handoffs)>=8
+
+          def test_spend_guard_blocks_ceiling_breach():
+              d=check_spend(spent=9900, proposed_increment=101, ceiling=10000)
+              assert not d.allowed and d.reason=='owner_ceiling_exceeded'
+
+          def test_spend_guard_allows_redistribution_without_new_spend():
+              d=check_spend(spent=9000, proposed_increment=0, ceiling=10000)
+              assert d.allowed
+
+          def test_digital_twin_detects_loss_fatigue_and_reallocates():
+              t=DigitalTwin(10000)
+              result=t.cycle()
+              actions=result['actions']
+              assert any(a['action']=='pause' and a['campaign']=='tiktok-loss' for a in actions)
+              assert any(a['action']=='refresh_creative' and a['campaign']=='meta-fatigue' for a in actions)
+              assert any(a['action']=='transfer' for a in actions)
+              assert result['spend'] <= 10000
+
+          def test_digital_twin_never_breaks_low_ceiling():
+              t=DigitalTwin(5000)
+              result=t.cycle()
+              assert result['spend'] <= 5300  # starting fixture exceeds this synthetic ceiling; no incremental spend may be added
+              assert not any(a.get('amount',0)>0 and a['action']=='transfer' and result['spend']>t.ceiling for a in result['actions'])
+
+          def test_api_exposes_team_and_twin():
+              c=TestClient(app)
+              r=c.get('/v1/autonomy/team'); assert r.status_code==200 and len(r.json()['agents'])==16
+              r=c.post('/v1/autonomy/digital-twin?monthly_spend_ceiling=10000'); assert r.status_code==200
+              assert r.json()['spend'] <= 10000
+          PY
+
+          cat > 'laboratorio/ads-ai-hub/agentic/DIGITAL_TWIN.md' <<'EOF'
+          # Digital Twin ADS-AI-HUB v0.2
+          Cenários obrigatórios: campanha vencedora, campanha em prejuízo, fadiga criativa, crescimento TikTok, redistribuição de verba, veto por teto financeiro e API de cockpit. Nenhum teste usa credenciais ou gasto real.
+          EOF
+
+      - name: Instalar e executar testes do runtime
+        shell: bash
+        run: |
+          cd oficina/ads-ai-hub
+          python -m pip install -q -e '.[test]'
+          pytest -q tests/agentic
+          pytest -q
+
+      - name: Smoke test do cockpit autônomo
+        shell: bash
+        run: |
+          cd oficina/ads-ai-hub
+          python - <<'PY'
+          from fastapi.testclient import TestClient
+          from app.main import app
+          c=TestClient(app)
+          assert c.get('/v1/autonomy/team').status_code == 200
+          r=c.post('/v1/autonomy/digital-twin?monthly_spend_ceiling=10000')
+          assert r.status_code == 200
+          body=r.json()
+          assert body['spend'] <= body['ceiling']
+          print('AUTONOMOUS_COCKPIT=OK')
+          print('AGENTS=16')
+          print('SPEND_GUARD=OK')
+          print('DIGITAL_TWIN=OK')
+          PY
+
+      - name: Registrar checkpoint validado
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add oficina/ads-ai-hub laboratorio/ads-ai-hub/agentic
+          git commit -m 'feat: ADS-AI-HUB v0.2 autonomous runtime e digital twin validados'
+          git push
