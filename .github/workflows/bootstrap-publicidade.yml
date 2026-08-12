@@ -1,0 +1,180 @@
+name: Bootstrap Publicidade Workshop
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/bootstrap-publicidade.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  montar-almoxarifado:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout Publicidade
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Preparar zonas
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p almoxarifado/{ai,gateway,connectors,security,messaging,observability,database}
+          mkdir -p laboratorio/{contratos,integracao,seguranca,comparativos}
+          mkdir -p oficina/{hub,contracts,adapters,infrastructure,tests}
+          mkdir -p inventario
+          cat > laboratorio/README.md <<'EOF'
+          # Laboratório
+          Área de testes e comparação dos doadores antes de qualquer incorporação ao ADS-AI-HUB.
+
+          Nenhum componente do `almoxarifado/` é considerado aprovado apenas por estar copiado aqui.
+          EOF
+          cat > oficina/README.md <<'EOF'
+          # Oficina
+          Área de montagem do ADS-AI-HUB. Código doador não deve ser alterado no almoxarifado; adaptações entram aqui.
+          EOF
+          cat > inventario/componentes.tsv <<'EOF'
+          componente	origem	destino	commit	status
+          EOF
+
+      - name: Coletar snapshots limpos
+        shell: bash
+        run: |
+          set -u
+          TMP="$(mktemp -d)"
+          FAIL=0
+
+          clone_one() {
+            local name="$1"
+            local url="$2"
+            local dest="$3"
+            local src="$TMP/$name"
+            echo "==> $name <= $url"
+            rm -rf "$src" "$dest"
+            if ! git clone --depth 1 "$url" "$src"; then
+              printf '%s\t%s\t%s\t%s\tFAILED_CLONE\n' "$name" "$url" "$dest" "-" >> inventario/componentes.tsv
+              FAIL=1
+              return 0
+            fi
+            local sha
+            sha="$(git -C "$src" rev-parse HEAD)"
+            mkdir -p "$dest"
+            rsync -a --delete \
+              --exclude='.git/' \
+              --exclude='.github/' \
+              --exclude='.gitlab/' \
+              --exclude='.idea/' \
+              --exclude='.vscode/' \
+              --exclude='node_modules/' \
+              --exclude='.venv/' \
+              --exclude='venv/' \
+              --exclude='dist/' \
+              --exclude='build/' \
+              --exclude='target/' \
+              --exclude='coverage/' \
+              --exclude='__pycache__/' \
+              "$src/" "$dest/"
+
+            # GitHub rejeita blobs >100 MB; snapshots de código não precisam de artefatos gigantes.
+            while IFS= read -r -d '' f; do
+              echo "REMOVIDO_ARQUIVO_GRANDE=$f" >> inventario/arquivos-removidos.log
+              rm -f "$f"
+            done < <(find "$dest" -type f -size +95M -print0)
+
+            cat > "$dest/_ORIGIN.json" <<EOF
+          {
+            "component": "$name",
+            "repository": "$url",
+            "commit": "$sha",
+            "snapshot_type": "clean-source-without-git-history",
+            "collected_by": "Publicidade bootstrap workflow"
+          }
+          EOF
+            printf '%s\t%s\t%s\t%s\tOK\n' "$name" "$url" "$dest" "$sha" >> inventario/componentes.tsv
+          }
+
+          clone_one "openai-codex" "https://github.com/openai/codex.git" "almoxarifado/ai/openai-codex"
+          clone_one "higress" "https://github.com/alibaba/higress.git" "almoxarifado/gateway/higress"
+
+          clone_one "meta-ads-mcp-mikusnuz" "https://github.com/mikusnuz/meta-ads-mcp.git" "almoxarifado/connectors/meta-ads-mcp-mikusnuz"
+          clone_one "meta-ads-mcp-pipeboard" "https://github.com/pipeboard-co/meta-ads-mcp.git" "almoxarifado/connectors/meta-ads-mcp-pipeboard"
+          clone_one "meta-nodejs-business-sdk" "https://github.com/facebook/facebook-nodejs-business-sdk.git" "almoxarifado/connectors/meta-official-sdk"
+
+          clone_one "tiktok-ads-mcp" "https://github.com/AdsMCP/tiktok-ads-mcp-server.git" "almoxarifado/connectors/tiktok-ads-mcp"
+          clone_one "tiktok-business-api-sdk" "https://github.com/tiktok/tiktok-business-api-sdk.git" "almoxarifado/connectors/tiktok-official-sdk"
+
+          clone_one "agent-vault" "https://github.com/Infisical/agent-vault.git" "almoxarifado/security/agent-vault"
+          clone_one "opa" "https://github.com/open-policy-agent/opa.git" "almoxarifado/security/opa"
+          clone_one "nats-server" "https://github.com/nats-io/nats-server.git" "almoxarifado/messaging/nats-server"
+          clone_one "opentelemetry-collector" "https://github.com/open-telemetry/opentelemetry-collector.git" "almoxarifado/observability/opentelemetry-collector"
+          clone_one "prometheus" "https://github.com/prometheus/prometheus.git" "almoxarifado/observability/prometheus"
+          clone_one "postgresql" "https://github.com/postgres/postgres.git" "almoxarifado/database/postgresql"
+
+          echo "$FAIL" > inventario/.bootstrap_fail
+
+      - name: Gerar inventário e regras da oficina
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > inventario/README.md <<'EOF'
+          # Inventário de componentes
+
+          `componentes.tsv` registra origem, destino, commit exato e resultado da coleta.
+
+          Política:
+          1. Licenças e avisos de copyright dos doadores devem permanecer preservados.
+          2. `almoxarifado/` é somente origem técnica; alterações entram em `oficina/`.
+          3. Nenhuma credencial real pode ser armazenada neste repositório.
+          4. APIs oficiais de Meta e TikTok são a autoridade de contrato quando divergirem de MCPs comunitários.
+          5. Um componente só passa do almoxarifado para a oficina depois de validação de licença, segurança, contrato e testes.
+          EOF
+
+          cat > oficina/ARQUITETURA-ALVO.md <<'EOF'
+          # Arquitetura alvo
+
+          ChatGPT/Codex/outra IA
+          → Higress
+          → ADS-AI-HUB
+          → OPA + Agent Vault + NATS/JetStream
+          → Meta Adapter / TikTok Adapter
+          → SDK/API oficial de cada plataforma
+          → PostgreSQL + OpenTelemetry + Prometheus
+
+          O núcleo deve falar um contrato canônico de publicidade. Os conectores traduzem esse contrato para cada plataforma.
+          EOF
+
+      - name: Registrar snapshot no Publicidade
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "Publicidade Workshop Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add README.md almoxarifado laboratorio oficina inventario
+          if git diff --cached --quiet; then
+            echo "Nenhuma alteração para registrar."
+          else
+            git commit -m "chore: abastecer almoxarifado com snapshots limpos dos doadores"
+            git push origin HEAD:main
+          fi
+
+      - name: Validar coleta
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== INVENTARIO ==='
+          cat inventario/componentes.tsv
+          FAIL="$(cat inventario/.bootstrap_fail)"
+          rm -f inventario/.bootstrap_fail
+          if [ "$FAIL" != "0" ]; then
+            echo "Um ou mais doadores falharam na coleta. Os demais foram preservados no commit."
+            exit 1
+          fi
+          COUNT_OK="$(awk -F '\t' 'NR>1 && $5=="OK" {c++} END{print c+0}' inventario/componentes.tsv)"
+          test "$COUNT_OK" -eq 13
+          echo "COMPONENTES_OK=$COUNT_OK"
+          echo "ALMOXARIFADO_OK=true"
