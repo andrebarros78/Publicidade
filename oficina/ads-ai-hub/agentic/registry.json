@@ -1,0 +1,24 @@
+{
+  "version": "0.2.0",
+  "principle": "Owner defines only spend ceiling and business constraints; agent team owns advertising strategy and execution inside those limits.",
+  "runtime": "openai-agents-python",
+  "contract_standard": "AdCP-compatible internal contracts",
+  "agents": [
+    {"id":"chief_ads_officer","title":"Diretor Geral de Publicidade","reports_to":"owner","primary":"OpenAI Agents SDK","autonomy":"full_within_budget"},
+    {"id":"marketing_strategist","title":"Estrategista de Marketing","reports_to":"chief_ads_officer","primary":"Synter marketing skills","autonomy":"recommend_and_execute"},
+    {"id":"market_intelligence","title":"Especialista de Mercado e Concorrência","reports_to":"marketing_strategist","primary":"competitive intelligence + public ad libraries","autonomy":"analyze"},
+    {"id":"consumer_intelligence","title":"Especialista em Consumidor e Público","reports_to":"marketing_strategist","primary":"audience expansion + signals","autonomy":"analyze_and_test"},
+    {"id":"product_portfolio","title":"Especialista de Produto e Portfólio","reports_to":"chief_ads_officer","primary":"portfolio economics","autonomy":"rank_and_allocate"},
+    {"id":"performance_scientist","title":"Cientista de Performance","reports_to":"chief_ads_officer","primary":"statistical performance analysis","autonomy":"analyze"},
+    {"id":"marketing_science","title":"Cientista de Marketing / MMM","reports_to":"performance_scientist","primary":"Google Meridian","secondary":"Meta Robyn","autonomy":"model_and_recommend"},
+    {"id":"attribution_specialist","title":"Especialista em Atribuição e Incrementalidade","reports_to":"performance_scientist","primary":"incrementality + attribution skills","autonomy":"analyze"},
+    {"id":"budget_allocator","title":"Gestor Autônomo de Orçamento","reports_to":"chief_ads_officer","primary":"Meridian optimizer + policy engine","autonomy":"redistribute_within_owner_ceiling"},
+    {"id":"experiment_scientist","title":"Especialista em Experimentos e A/B","reports_to":"performance_scientist","primary":"controlled experimentation","autonomy":"launch_bounded_tests"},
+    {"id":"creative_director","title":"Diretor de Criação","reports_to":"marketing_strategist","primary":"creative performance intelligence","autonomy":"brief_test_rotate"},
+    {"id":"copywriter","title":"Copywriter de Performance","reports_to":"creative_director","primary":"direct-response copy","autonomy":"generate_and_test"},
+    {"id":"meta_media_buyer","title":"Especialista Meta Ads","reports_to":"chief_ads_officer","primary":"Meta Marketing API + meta-ads-mcp","autonomy":"execute_within_policy"},
+    {"id":"tiktok_media_buyer","title":"Especialista TikTok Ads","reports_to":"chief_ads_officer","primary":"TikTok Business API + tiktok ads adapter","autonomy":"execute_within_policy"},
+    {"id":"risk_guardian","title":"Guardião de Risco e Spend Guard","reports_to":"owner_policy","primary":"OPA + deterministic guards","autonomy":"veto"},
+    {"id":"ads_operations","title":"Operações, Auditoria e Recuperação","reports_to":"chief_ads_officer","primary":"NATS + PostgreSQL + OpenTelemetry","autonomy":"operate_recover_audit"}
+  ]
+}

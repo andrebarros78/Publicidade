@@ -1,0 +1,11 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema","title":"AdsAction","type":"object",
+  "required":["action_id","platform","operation","object_id","reversible","evidence_refs"],
+  "properties":{
+    "action_id":{"type":"string","minLength":1},"platform":{"enum":["meta","tiktok","internal"]},
+    "operation":{"type":"string","minLength":1},"object_id":{"type":"string","minLength":1},
+    "before":{"type":"object"},"after":{"type":"object"},
+    "evidence_refs":{"type":"array","items":{"type":"string"}},"expected_impact":{"type":"object"},
+    "max_loss":{"type":"number","minimum":0},"reversible":{"type":"boolean"},"idempotency_key":{"type":"string"}
+  }
+}

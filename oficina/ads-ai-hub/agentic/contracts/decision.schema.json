@@ -1,0 +1,11 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "title":"AdsAgentDecision","type":"object",
+  "required":["agent","evidence","confidence","decision","risk","actions"],
+  "properties":{
+    "agent":{"type":"string"},"evidence":{"type":"array","items":{"type":"object"}},
+    "metrics":{"type":"object"},"confidence":{"type":"number","minimum":0,"maximum":1},
+    "decision":{"type":"string"},"risk":{"enum":["low","medium","high","blocked"]},
+    "actions":{"type":"array","items":{"$ref":"action.schema.json"}}
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema","title":"OwnerAdvertisingPolicy","type":"object",
+  "required":["currency","monthly_spend_ceiling"],
+  "properties":{
+    "currency":{"type":"string","default":"BRL"},"monthly_spend_ceiling":{"type":"number","minimum":0},
+    "max_test_loss":{"type":"number","minimum":0,"default":0},
+    "forbidden_products":{"type":"array","items":{"type":"string"}},"notes":{"type":"string"}
+  },"additionalProperties":false
+}
