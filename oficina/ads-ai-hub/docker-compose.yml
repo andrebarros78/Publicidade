@@ -1,0 +1,30 @@
+services:
+  hub:
+    build: .
+    ports: ["8080:8080"]
+    environment:
+      ADS_ENV: ${ADS_ENV:-sandbox}
+      ADS_DRY_RUN: ${ADS_DRY_RUN:-true}
+      ADS_MAX_BUDGET_INCREASE_PCT: ${ADS_MAX_BUDGET_INCREASE_PCT:-20}
+      META_ACCESS_TOKEN: ${META_ACCESS_TOKEN:-}
+      META_AD_ACCOUNT_ID: ${META_AD_ACCOUNT_ID:-}
+      META_GRAPH_VERSION: ${META_GRAPH_VERSION:-v26.0}
+      TIKTOK_ACCESS_TOKEN: ${TIKTOK_ACCESS_TOKEN:-}
+      TIKTOK_ADVERTISER_ID: ${TIKTOK_ADVERTISER_ID:-}
+    healthcheck:
+      test: ["CMD","python","-c","import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+  postgres:
+    image: postgres:17-alpine
+    environment: {POSTGRES_DB: ads, POSTGRES_USER: ads, POSTGRES_PASSWORD: ads}
+    volumes: ["ads-db:/var/lib/postgresql/data"]
+  nats:
+    image: nats:2.11-alpine
+    command: ["-js"]
+  opa:
+    image: openpolicyagent/opa:latest-static
+    command: ["run","--server","/policy/ads.rego"]
+    volumes: ["./policy:/policy:ro"]
+volumes: {ads-db: {}}

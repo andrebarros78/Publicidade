@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ads-ai-hub"
+version = "0.1.0"
+description = "Hub multicanal seguro para Meta Ads e TikTok Ads controlado por IA"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.116,<1",
+  "uvicorn[standard]>=0.35,<1",
+  "httpx>=0.28,<1",
+  "pydantic>=2.11,<3"
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8.4,<9"]
+
+[tool.setuptools]
+packages = ["app", "app.adapters", "app.core"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
