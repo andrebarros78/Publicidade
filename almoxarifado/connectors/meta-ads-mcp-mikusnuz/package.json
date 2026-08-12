@@ -1,0 +1,60 @@
+{
+  "name": "@mikusnuz/meta-ads-mcp",
+  "version": "1.4.1",
+  "mcpName": "io.github.mikusnuz/meta-ads",
+  "description": "MCP server for Meta Marketing API v26.0 — 135 tools for Facebook & Instagram ad campaign management",
+  "type": "module",
+  "bin": {
+    "meta-ads-mcp": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist/**/*",
+    "LICENSE",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts"
+  },
+  "keywords": [
+    "mcp",
+    "meta",
+    "facebook",
+    "instagram",
+    "ads",
+    "marketing",
+    "advertising",
+    "campaign"
+  ],
+  "license": "MIT",
+  "author": "mikusnuz",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mikusnuz/meta-ads-mcp.git"
+  },
+  "homepage": "https://github.com/mikusnuz/meta-ads-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/mikusnuz/meta-ads-mcp/issues"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "tsx": "^4.23.9",
+    "typescript": "^5.9.3"
+  }
+}

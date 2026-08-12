@@ -1,0 +1,7 @@
+{
+  "component": "opentelemetry-collector",
+  "repository": "https://github.com/open-telemetry/opentelemetry-collector.git",
+  "commit": "7276fdcb70d095f5aded4560f11426785a295c98",
+  "snapshot_type": "clean-source-without-git-history",
+  "collected_by": "Publicidade bootstrap workflow"
+}

@@ -1,0 +1,139 @@
+ /*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ * @flow
+ */
+
+import {AbstractCrudObject} from './../abstract-crud-object';
+import AbstractObject from './../abstract-object';
+import Cursor from './../cursor';
+import CommerceOrder from './commerce-order';
+import CommercePayout from './commerce-payout';
+import Application from './application';
+import ProductCatalog from './product-catalog';
+import CommerceMerchantSettingsSetupStatus from './commerce-merchant-settings-setup-status';
+import Shop from './shop';
+
+/**
+ * CommerceMerchantSettings
+ * @extends AbstractCrudObject
+ * @see {@link https://developers.facebook.com/docs/marketing-api/}
+ */
+export default class CommerceMerchantSettings extends AbstractCrudObject {
+  static get Fields (): Object {
+    return Object.freeze({
+      checkout_config: 'checkout_config',
+      contact_email: 'contact_email',
+      display_name: 'display_name',
+      facebook_channel: 'facebook_channel',
+      id: 'id',
+      instagram_channel: 'instagram_channel',
+      korea_ftc_listing: 'korea_ftc_listing',
+      merchant_page: 'merchant_page',
+      merchant_status: 'merchant_status',
+      offsite_iab_checkout_enabled_countries: 'offsite_iab_checkout_enabled_countries',
+      payment_provider: 'payment_provider',
+      privacy_policy_localized: 'privacy_policy_localized',
+      shops_ads_setup: 'shops_ads_setup',
+      terms: 'terms',
+    });
+  }
+
+  static get MerchantStatus (): Object {
+    return Object.freeze({
+      enabled: 'ENABLED',
+      externally_disabled: 'EXTERNALLY_DISABLED',
+    });
+  }
+
+  getCommerceOrders (fields: Array<string>, params: Object = {}, fetchFirstPage: boolean = true): Cursor | Promise<*> {
+    return this.getEdge(
+      CommerceOrder,
+      fields,
+      params,
+      fetchFirstPage,
+      '/commerce_orders'
+    );
+  }
+
+  getCommercePayouts (fields: Array<string>, params: Object = {}, fetchFirstPage: boolean = true): Cursor | Promise<*> {
+    return this.getEdge(
+      CommercePayout,
+      fields,
+      params,
+      fetchFirstPage,
+      '/commerce_payouts'
+    );
+  }
+
+  getOrderManagementApps (fields: Array<string>, params: Object = {}, fetchFirstPage: boolean = true): Cursor | Promise<*> {
+    return this.getEdge(
+      Application,
+      fields,
+      params,
+      fetchFirstPage,
+      '/order_management_apps'
+    );
+  }
+
+  getProductCatalogs (fields: Array<string>, params: Object = {}, fetchFirstPage: boolean = true): Cursor | Promise<*> {
+    return this.getEdge(
+      ProductCatalog,
+      fields,
+      params,
+      fetchFirstPage,
+      '/product_catalogs'
+    );
+  }
+
+  getSetupStatus (fields: Array<string>, params: Object = {}, fetchFirstPage: boolean = true): Cursor | Promise<*> {
+    return this.getEdge(
+      CommerceMerchantSettingsSetupStatus,
+      fields,
+      params,
+      fetchFirstPage,
+      '/setup_status'
+    );
+  }
+
+  createShippingProfile (fields: Array<string>, params: Object = {}, pathOverride?: ?string = null): Promise<AbstractObject> {
+    return this.createEdge(
+      '/shipping_profiles',
+      fields,
+      params,
+      null,
+      pathOverride,
+    );
+  }
+
+  getShops (fields: Array<string>, params: Object = {}, fetchFirstPage: boolean = true): Cursor | Promise<*> {
+    return this.getEdge(
+      Shop,
+      fields,
+      params,
+      fetchFirstPage,
+      '/shops'
+    );
+  }
+
+  
+  get (fields: Array<string>, params: Object = {}): CommerceMerchantSettings {
+    // $FlowFixMe : Support Generic Types
+    return this.read(
+      fields,
+      params
+    );
+  }
+
+  // $FlowFixMe : Support Generic Types
+  update (fields: Array<string>, params: Object = {}): CommerceMerchantSettings {
+    // $FlowFixMe : Support Generic Types
+    return super.update(
+      params
+    );
+  }
+}

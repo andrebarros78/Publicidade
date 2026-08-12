@@ -1,0 +1,34 @@
+ /*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ * @flow
+ */
+
+import {AbstractCrudObject} from './../abstract-crud-object';
+
+/**
+ * CopyrightAudioAsset
+ * @extends AbstractCrudObject
+ * @see {@link https://developers.facebook.com/docs/marketing-api/}
+ */
+export default class CopyrightAudioAsset extends AbstractCrudObject {
+  static get Fields (): Object {
+    return Object.freeze({
+      audio_availability_status: 'audio_availability_status',
+      audio_library_policy: 'audio_library_policy',
+      canonical_reference_file: 'canonical_reference_file',
+      creation_time: 'creation_time',
+      id: 'id',
+      reference_file_isrcs: 'reference_file_isrcs',
+      reference_files: 'reference_files',
+      representative_reference_file: 'representative_reference_file',
+      title: 'title',
+      update_time: 'update_time',
+    });
+  }
+
+}

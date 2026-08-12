@@ -1,0 +1,7 @@
+{
+  "component": "higress",
+  "repository": "https://github.com/alibaba/higress.git",
+  "commit": "0f7800c7efb47e98a7a0e453ef51ba47a890087e",
+  "snapshot_type": "clean-source-without-git-history",
+  "collected_by": "Publicidade bootstrap workflow"
+}

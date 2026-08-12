@@ -1,0 +1,7 @@
+{
+  "component": "agent-vault",
+  "repository": "https://github.com/Infisical/agent-vault.git",
+  "commit": "10743832e3dd362afd30c6e9b26b1732ed0d2766",
+  "snapshot_type": "clean-source-without-git-history",
+  "collected_by": "Publicidade bootstrap workflow"
+}

@@ -1,0 +1,7 @@
+{
+  "component": "tiktok-business-api-sdk",
+  "repository": "https://github.com/tiktok/tiktok-business-api-sdk.git",
+  "commit": "f809c396520df2d7b201a9ccc5378d822b728ed3",
+  "snapshot_type": "clean-source-without-git-history",
+  "collected_by": "Publicidade bootstrap workflow"
+}

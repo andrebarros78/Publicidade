@@ -1,0 +1,7 @@
+{
+  "component": "postgresql",
+  "repository": "https://github.com/postgres/postgres.git",
+  "commit": "bdaad789c843f57b1fc66c5ede7abaff8a915c3b",
+  "snapshot_type": "clean-source-without-git-history",
+  "collected_by": "Publicidade bootstrap workflow"
+}

@@ -1,0 +1,7 @@
+{
+  "component": "opa",
+  "repository": "https://github.com/open-policy-agent/opa.git",
+  "commit": "1683dd6338464dff9ab68d128402db2d4f88aa02",
+  "snapshot_type": "clean-source-without-git-history",
+  "collected_by": "Publicidade bootstrap workflow"
+}

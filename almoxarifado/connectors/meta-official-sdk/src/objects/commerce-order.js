@@ -1,0 +1,75 @@
+ /*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ * @flow
+ */
+
+import {AbstractCrudObject} from './../abstract-crud-object';
+
+/**
+ * CommerceOrder
+ * @extends AbstractCrudObject
+ * @see {@link https://developers.facebook.com/docs/marketing-api/}
+ */
+export default class CommerceOrder extends AbstractCrudObject {
+  static get Fields (): Object {
+    return Object.freeze({
+      buyer_details: 'buyer_details',
+      channel: 'channel',
+      contains_bopis_items: 'contains_bopis_items',
+      created: 'created',
+      estimated_payment_details: 'estimated_payment_details',
+      id: 'id',
+      is_group_buy: 'is_group_buy',
+      is_test_order: 'is_test_order',
+      last_updated: 'last_updated',
+      merchant_order_id: 'merchant_order_id',
+      order_status: 'order_status',
+      selected_shipping_option: 'selected_shipping_option',
+      ship_by_date: 'ship_by_date',
+      shipping_address: 'shipping_address',
+    });
+  }
+
+  static get Filters (): Object {
+    return Object.freeze({
+      has_cancellations: 'HAS_CANCELLATIONS',
+      has_fulfillments: 'HAS_FULFILLMENTS',
+      has_refunds: 'HAS_REFUNDS',
+      no_cancellations: 'NO_CANCELLATIONS',
+      no_refunds: 'NO_REFUNDS',
+      no_shipments: 'NO_SHIPMENTS',
+    });
+  }
+  static get State (): Object {
+    return Object.freeze({
+      completed: 'COMPLETED',
+      created: 'CREATED',
+      fb_processing: 'FB_PROCESSING',
+      in_progress: 'IN_PROGRESS',
+    });
+  }
+
+  createShipment (fields: Array<string>, params: Object = {}, pathOverride?: ?string = null): Promise<CommerceOrder> {
+    return this.createEdge(
+      '/shipments',
+      fields,
+      params,
+      CommerceOrder,
+      pathOverride,
+    );
+  }
+
+  
+  get (fields: Array<string>, params: Object = {}): CommerceOrder {
+    // $FlowFixMe : Support Generic Types
+    return this.read(
+      fields,
+      params
+    );
+  }
+}

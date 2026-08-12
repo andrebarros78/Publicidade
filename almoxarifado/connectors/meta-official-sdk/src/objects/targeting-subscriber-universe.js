@@ -1,0 +1,28 @@
+ /*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ * @flow
+ */
+
+import {AbstractCrudObject} from './../abstract-crud-object';
+
+/**
+ * TargetingSubscriberUniverse
+ * @extends AbstractCrudObject
+ * @see {@link https://developers.facebook.com/docs/marketing-api/}
+ */
+export default class TargetingSubscriberUniverse extends AbstractCrudObject {
+  static get Fields (): Object {
+    return Object.freeze({
+      messaging_customer_base_for_whatsapp: 'messaging_customer_base_for_whatsapp',
+      messenger_subscriber_pool: 'messenger_subscriber_pool',
+      messenger_subscriber_source: 'messenger_subscriber_source',
+      whatsapp_subscriber_source: 'whatsapp_subscriber_source',
+    });
+  }
+
+}

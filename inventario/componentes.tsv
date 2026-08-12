@@ -1,0 +1,14 @@
+componente	origem	destino	commit	status
+openai-codex	https://github.com/openai/codex.git	almoxarifado/ai/openai-codex	1f4ea798538d2c947ce215a65bc166db517a2df6	OK
+higress	https://github.com/alibaba/higress.git	almoxarifado/gateway/higress	0f7800c7efb47e98a7a0e453ef51ba47a890087e	OK
+meta-ads-mcp-mikusnuz	https://github.com/mikusnuz/meta-ads-mcp.git	almoxarifado/connectors/meta-ads-mcp-mikusnuz	6ccf36c761e82359eea0d929024f58cd9d32e2cc	OK
+meta-ads-mcp-pipeboard	https://github.com/pipeboard-co/meta-ads-mcp.git	almoxarifado/connectors/meta-ads-mcp-pipeboard	2ef198e266ca6a37b6dc2c42335f0a0885002771	OK
+meta-nodejs-business-sdk	https://github.com/facebook/facebook-nodejs-business-sdk.git	almoxarifado/connectors/meta-official-sdk	ebd272a36a1a54a10e846cc4c42200be54871f5a	OK
+tiktok-ads-mcp	https://github.com/AdsMCP/tiktok-ads-mcp-server.git	almoxarifado/connectors/tiktok-ads-mcp	fef46dda014716773f97473a0044bdfae123d99f	OK
+tiktok-business-api-sdk	https://github.com/tiktok/tiktok-business-api-sdk.git	almoxarifado/connectors/tiktok-official-sdk	f809c396520df2d7b201a9ccc5378d822b728ed3	OK
+agent-vault	https://github.com/Infisical/agent-vault.git	almoxarifado/security/agent-vault	10743832e3dd362afd30c6e9b26b1732ed0d2766	OK
+opa	https://github.com/open-policy-agent/opa.git	almoxarifado/security/opa	1683dd6338464dff9ab68d128402db2d4f88aa02	OK
+nats-server	https://github.com/nats-io/nats-server.git	almoxarifado/messaging/nats-server	feb54200bb422ebace7b9449a675e763fb4571f2	OK
+opentelemetry-collector	https://github.com/open-telemetry/opentelemetry-collector.git	almoxarifado/observability/opentelemetry-collector	7276fdcb70d095f5aded4560f11426785a295c98	OK
+prometheus	https://github.com/prometheus/prometheus.git	almoxarifado/observability/prometheus	0923fdef23c3468ce4afdb3f2cb6c14a79037214	OK
+postgresql	https://github.com/postgres/postgres.git	almoxarifado/database/postgresql	bdaad789c843f57b1fc66c5ede7abaff8a915c3b	OK

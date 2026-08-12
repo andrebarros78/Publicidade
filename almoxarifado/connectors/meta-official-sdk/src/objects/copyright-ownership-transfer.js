@@ -1,0 +1,42 @@
+ /*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ * @flow
+ */
+
+import {AbstractCrudObject} from './../abstract-crud-object';
+
+/**
+ * CopyrightOwnershipTransfer
+ * @extends AbstractCrudObject
+ * @see {@link https://developers.facebook.com/docs/marketing-api/}
+ */
+export default class CopyrightOwnershipTransfer extends AbstractCrudObject {
+  static get Fields (): Object {
+    return Object.freeze({
+      assets: 'assets',
+      has_ownership_been_updated: 'has_ownership_been_updated',
+      id: 'id',
+      num_assets: 'num_assets',
+      receiving_rights_holder_owner: 'receiving_rights_holder_owner',
+      sending_rights_holder_owner: 'sending_rights_holder_owner',
+      status: 'status',
+      transfer_territories: 'transfer_territories',
+      transfer_time: 'transfer_time',
+    });
+  }
+
+
+  
+  get (fields: Array<string>, params: Object = {}): CopyrightOwnershipTransfer {
+    // $FlowFixMe : Support Generic Types
+    return this.read(
+      fields,
+      params
+    );
+  }
+}

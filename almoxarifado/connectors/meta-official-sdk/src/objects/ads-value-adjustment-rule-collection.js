@@ -1,0 +1,93 @@
+ /*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * All rights reserved.
+ *
+ * This source code is licensed under the license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ * @flow
+ */
+
+import {AbstractCrudObject} from './../abstract-crud-object';
+import AbstractObject from './../abstract-object';
+import Cursor from './../cursor';
+
+/**
+ * AdsValueAdjustmentRuleCollection
+ * @extends AbstractCrudObject
+ * @see {@link https://developers.facebook.com/docs/marketing-api/}
+ */
+export default class AdsValueAdjustmentRuleCollection extends AbstractCrudObject {
+  static get Fields (): Object {
+    return Object.freeze({
+      id: 'id',
+      is_default_setting: 'is_default_setting',
+      last_attach_time: 'last_attach_time',
+      name: 'name',
+      product_type: 'product_type',
+      status: 'status',
+    });
+  }
+
+  static get EntryPoint (): Object {
+    return Object.freeze({
+      advertising_settings: 'ADVERTISING_SETTINGS',
+      l2_audience: 'L2_AUDIENCE',
+      l2_conversion_location: 'L2_CONVERSION_LOCATION',
+      l2_global: 'L2_GLOBAL',
+      l2_nca_goal: 'L2_NCA_GOAL',
+      l2_placement: 'L2_PLACEMENT',
+    });
+  }
+  static get ProductType (): Object {
+    return Object.freeze({
+      audience: 'AUDIENCE',
+      leadgen_ads: 'LEADGEN_ADS',
+      omni_channel: 'OMNI_CHANNEL',
+    });
+  }
+  static get Status (): Object {
+    return Object.freeze({
+      active: 'ACTIVE',
+      deleted: 'DELETED',
+      draft: 'DRAFT',
+    });
+  }
+
+  createDeleteRuleSet (fields: Array<string>, params: Object = {}, pathOverride?: ?string = null): Promise<AdsValueAdjustmentRuleCollection> {
+    return this.createEdge(
+      '/delete_rule_set',
+      fields,
+      params,
+      AdsValueAdjustmentRuleCollection,
+      pathOverride,
+    );
+  }
+
+  getRules (fields: Array<string>, params: Object = {}, fetchFirstPage: boolean = true): Cursor | Promise<*> {
+    return this.getEdge(
+      AbstractObject,
+      fields,
+      params,
+      fetchFirstPage,
+      '/rules'
+    );
+  }
+
+  
+  get (fields: Array<string>, params: Object = {}): AdsValueAdjustmentRuleCollection {
+    // $FlowFixMe : Support Generic Types
+    return this.read(
+      fields,
+      params
+    );
+  }
+
+  // $FlowFixMe : Support Generic Types
+  update (fields: Array<string>, params: Object = {}): AdsValueAdjustmentRuleCollection {
+    // $FlowFixMe : Support Generic Types
+    return super.update(
+      params
+    );
+  }
+}

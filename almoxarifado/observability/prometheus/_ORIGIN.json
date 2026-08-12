@@ -1,0 +1,7 @@
+{
+  "component": "prometheus",
+  "repository": "https://github.com/prometheus/prometheus.git",
+  "commit": "0923fdef23c3468ce4afdb3f2cb6c14a79037214",
+  "snapshot_type": "clean-source-without-git-history",
+  "collected_by": "Publicidade bootstrap workflow"
+}

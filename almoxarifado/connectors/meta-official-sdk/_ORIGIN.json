@@ -1,0 +1,7 @@
+{
+  "component": "meta-nodejs-business-sdk",
+  "repository": "https://github.com/facebook/facebook-nodejs-business-sdk.git",
+  "commit": "ebd272a36a1a54a10e846cc4c42200be54871f5a",
+  "snapshot_type": "clean-source-without-git-history",
+  "collected_by": "Publicidade bootstrap workflow"
+}

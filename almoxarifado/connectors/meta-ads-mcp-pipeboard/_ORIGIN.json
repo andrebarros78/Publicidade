@@ -1,0 +1,7 @@
+{
+  "component": "meta-ads-mcp-pipeboard",
+  "repository": "https://github.com/pipeboard-co/meta-ads-mcp.git",
+  "commit": "2ef198e266ca6a37b6dc2c42335f0a0885002771",
+  "snapshot_type": "clean-source-without-git-history",
+  "collected_by": "Publicidade bootstrap workflow"
+}

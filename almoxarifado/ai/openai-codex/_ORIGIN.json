@@ -1,0 +1,7 @@
+{
+  "component": "openai-codex",
+  "repository": "https://github.com/openai/codex.git",
+  "commit": "1f4ea798538d2c947ce215a65bc166db517a2df6",
+  "snapshot_type": "clean-source-without-git-history",
+  "collected_by": "Publicidade bootstrap workflow"
+}

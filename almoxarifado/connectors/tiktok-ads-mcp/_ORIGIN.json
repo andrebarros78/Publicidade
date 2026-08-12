@@ -1,0 +1,7 @@
+{
+  "component": "tiktok-ads-mcp",
+  "repository": "https://github.com/AdsMCP/tiktok-ads-mcp-server.git",
+  "commit": "fef46dda014716773f97473a0044bdfae123d99f",
+  "snapshot_type": "clean-source-without-git-history",
+  "collected_by": "Publicidade bootstrap workflow"
+}

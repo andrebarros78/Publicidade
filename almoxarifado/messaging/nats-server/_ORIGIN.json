@@ -1,0 +1,7 @@
+{
+  "component": "nats-server",
+  "repository": "https://github.com/nats-io/nats-server.git",
+  "commit": "feb54200bb422ebace7b9449a675e763fb4571f2",
+  "snapshot_type": "clean-source-without-git-history",
+  "collected_by": "Publicidade bootstrap workflow"
+}
