@@ -52,16 +52,12 @@ jobs:
           cat > "$ROOT/agentic/contracts/decision.schema.json" <<'EOF'
           {
             "$schema":"https://json-schema.org/draft/2020-12/schema",
-            "title":"AdsAgentDecision",
-            "type":"object",
+            "title":"AdsAgentDecision","type":"object",
             "required":["agent","evidence","confidence","decision","risk","actions"],
             "properties":{
-              "agent":{"type":"string"},
-              "evidence":{"type":"array","items":{"type":"object"}},
-              "metrics":{"type":"object"},
-              "confidence":{"type":"number","minimum":0,"maximum":1},
-              "decision":{"type":"string"},
-              "risk":{"enum":["low","medium","high","blocked"]},
+              "agent":{"type":"string"},"evidence":{"type":"array","items":{"type":"object"}},
+              "metrics":{"type":"object"},"confidence":{"type":"number","minimum":0,"maximum":1},
+              "decision":{"type":"string"},"risk":{"enum":["low","medium","high","blocked"]},
               "actions":{"type":"array","items":{"$ref":"action.schema.json"}}
             }
           }
@@ -69,46 +65,32 @@ jobs:
 
           cat > "$ROOT/agentic/contracts/action.schema.json" <<'EOF'
           {
-            "$schema":"https://json-schema.org/draft/2020-12/schema",
-            "title":"AdsAction",
-            "type":"object",
+            "$schema":"https://json-schema.org/draft/2020-12/schema","title":"AdsAction","type":"object",
             "required":["action_id","platform","operation","object_id","reversible","evidence_refs"],
             "properties":{
-              "action_id":{"type":"string","minLength":1},
-              "platform":{"enum":["meta","tiktok","internal"]},
-              "operation":{"type":"string","minLength":1},
-              "object_id":{"type":"string","minLength":1},
-              "before":{"type":"object"},
-              "after":{"type":"object"},
-              "evidence_refs":{"type":"array","items":{"type":"string"}},
-              "expected_impact":{"type":"object"},
-              "max_loss":{"type":"number","minimum":0},
-              "reversible":{"type":"boolean"},
-              "idempotency_key":{"type":"string"}
+              "action_id":{"type":"string","minLength":1},"platform":{"enum":["meta","tiktok","internal"]},
+              "operation":{"type":"string","minLength":1},"object_id":{"type":"string","minLength":1},
+              "before":{"type":"object"},"after":{"type":"object"},
+              "evidence_refs":{"type":"array","items":{"type":"string"}},"expected_impact":{"type":"object"},
+              "max_loss":{"type":"number","minimum":0},"reversible":{"type":"boolean"},"idempotency_key":{"type":"string"}
             }
           }
           EOF
 
           cat > "$ROOT/agentic/contracts/owner-policy.schema.json" <<'EOF'
           {
-            "$schema":"https://json-schema.org/draft/2020-12/schema",
-            "title":"OwnerAdvertisingPolicy",
-            "type":"object",
+            "$schema":"https://json-schema.org/draft/2020-12/schema","title":"OwnerAdvertisingPolicy","type":"object",
             "required":["currency","monthly_spend_ceiling"],
             "properties":{
-              "currency":{"type":"string","default":"BRL"},
-              "monthly_spend_ceiling":{"type":"number","minimum":0},
+              "currency":{"type":"string","default":"BRL"},"monthly_spend_ceiling":{"type":"number","minimum":0},
               "max_test_loss":{"type":"number","minimum":0,"default":0},
-              "forbidden_products":{"type":"array","items":{"type":"string"}},
-              "notes":{"type":"string"}
-            },
-            "additionalProperties":false
+              "forbidden_products":{"type":"array","items":{"type":"string"}},"notes":{"type":"string"}
+            },"additionalProperties":false
           }
           EOF
 
           cat > "$ROOT/agentic/knowledge/SOURCES.md" <<'EOF'
           # Bases especialistas selecionadas
-
           - Runtime multiagente: https://github.com/openai/openai-agents-python
           - Contrato publicitário aberto: https://github.com/adcontextprotocol/adcp
           - Marketing Mix Modeling / alocação: https://github.com/google/meridian
@@ -117,19 +99,13 @@ jobs:
           - Meta performance donor: https://github.com/TheMattBerman/meta-ads-kit
           - Meta executor donor: https://github.com/mikusnuz/meta-ads-mcp
           - TikTok executor donor: https://github.com/AdsMCP/tiktok-ads-mcp-server
-
           Fontes são conhecimento/ferramentas. O quadro profissional e as políticas pertencem ao ADS-AI-HUB.
           EOF
 
           cat > "$ROOT/agentic/runtime/team.py" <<'EOF'
-          """ADS-AI-HUB autonomous team definition.
-
-          Imports OpenAI Agents SDK when available. No API call happens at import time.
-          """
           from dataclasses import dataclass
           import json
           from pathlib import Path
-
           ROOT = Path(__file__).resolve().parents[1]
 
           @dataclass(frozen=True)
@@ -139,6 +115,7 @@ jobs:
               reports_to: str
               primary: str
               autonomy: str
+              secondary: str | None = None
 
           def load_registry():
               return json.loads((ROOT / "registry.json").read_text(encoding="utf-8"))
@@ -149,21 +126,13 @@ jobs:
           def owner_controls():
               return {
                   "owner_defines": ["monthly_spend_ceiling", "currency", "hard_business_constraints"],
-                  "system_owns": [
-                      "strategy", "channel_mix", "campaign_structure", "audiences", "creatives",
-                      "experiments", "budget_distribution", "optimization", "pause_scale_decisions",
-                      "measurement", "reporting"
-                  ],
-                  "never_autonomous": [
-                      "increase_owner_spend_ceiling", "change_payment_method",
-                      "change_account_ownership", "irreversible_asset_deletion"
-                  ]
+                  "system_owns": ["strategy","channel_mix","campaign_structure","audiences","creatives","experiments","budget_distribution","optimization","pause_scale_decisions","measurement","reporting"],
+                  "never_autonomous": ["increase_owner_spend_ceiling","change_payment_method","change_account_ownership","irreversible_asset_deletion"]
               }
           EOF
 
           cat > "$ROOT/agentic/agents/POSTOS.md" <<'EOF'
           # Quadro profissional ADS-AI-HUB
-
           1. Diretor Geral de Publicidade — coordena e decide.
           2. Estrategista de Marketing — posicionamento, funil, canal e estratégia.
           3. Inteligência de Mercado — concorrência, tendências, demanda e oportunidade.
@@ -172,7 +141,7 @@ jobs:
           6. Cientista de Performance — lê números, tendências e causalidade operacional.
           7. Cientista de Marketing/MMM — mede contribuição e otimiza mix de mídia.
           8. Atribuição e Incrementalidade — separa correlação de efeito incremental.
-          9. Gestor de Orçamento — distribui a verba sem ultrapassar o teto do proprietário.
+          9. Gestor de Orçamento — distribui verba sem ultrapassar o teto do proprietário.
           10. Cientista de Experimentos — testes controlados e critérios de parada.
           11. Diretor de Criação — estratégia de criativo e fadiga.
           12. Copywriter de Performance — mensagens, ofertas, hooks e CTAs.
@@ -180,7 +149,6 @@ jobs:
           14. TikTok Media Buyer — operação especializada TikTok.
           15. Guardião de Risco — veto financeiro, duplicidade, segurança e limites.
           16. Operações/Auditoria/Recuperação — persistência, fila, evidência e recuperação.
-
           O proprietário não administra estratégia diária. Define teto financeiro e restrições duras.
           EOF
 
@@ -188,37 +156,22 @@ jobs:
           import json
           from pathlib import Path
           import sys
-
           ROOT = Path(__file__).resolve().parents[2]
           sys.path.insert(0, str(ROOT))
           from agentic.runtime.team import posts, owner_controls
 
           def test_team_has_all_posts():
-              p = posts()
-              assert len(p) == 16
-              assert len({x.id for x in p}) == 16
-
+              p = posts(); assert len(p) == 16; assert len({x.id for x in p}) == 16
           def test_required_experts_present():
               ids = {x.id for x in posts()}
-              required = {
-                  'chief_ads_officer','marketing_strategist','market_intelligence','consumer_intelligence',
-                  'performance_scientist','marketing_science','budget_allocator','creative_director',
-                  'meta_media_buyer','tiktok_media_buyer','risk_guardian'
-              }
+              required = {'chief_ads_officer','marketing_strategist','market_intelligence','consumer_intelligence','performance_scientist','marketing_science','budget_allocator','creative_director','meta_media_buyer','tiktok_media_buyer','risk_guardian'}
               assert required <= ids
-
           def test_owner_does_not_own_strategy():
-              c = owner_controls()
-              assert 'strategy' in c['system_owns']
-              assert 'monthly_spend_ceiling' in c['owner_defines']
-
+              c=owner_controls(); assert 'strategy' in c['system_owns']; assert 'monthly_spend_ceiling' in c['owner_defines']
           def test_agents_cannot_raise_ceiling():
-              c = owner_controls()
-              assert 'increase_owner_spend_ceiling' in c['never_autonomous']
-
+              assert 'increase_owner_spend_ceiling' in owner_controls()['never_autonomous']
           def test_contracts_parse():
-              for p in (ROOT/'agentic'/'contracts').glob('*.json'):
-                  json.loads(p.read_text(encoding='utf-8'))
+              for p in (ROOT/'agentic'/'contracts').glob('*.json'): json.loads(p.read_text(encoding='utf-8'))
           EOF
 
           cat > 'laboratorio/ads-ai-hub/agentic/README.md' <<'EOF'
