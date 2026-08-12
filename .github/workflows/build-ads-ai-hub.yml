@@ -1,0 +1,451 @@
+name: Build ADS-AI-HUB
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-ads-ai-hub.yml'
+      - 'laboratorio/ads-ai-hub-trigger.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-hub:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Gerar ADS-AI-HUB
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT='oficina/ads-ai-hub'
+          LAB='laboratorio/ads-ai-hub'
+          rm -rf "$ROOT" "$LAB"
+          mkdir -p "$ROOT/app/adapters" "$ROOT/app/core" "$ROOT/tests" "$ROOT/policy" "$ROOT/infra" "$ROOT/docs" "$LAB"
+
+          cat > "$ROOT/pyproject.toml" <<'EOF'
+          [build-system]
+          requires = ["setuptools>=80"]
+          build-backend = "setuptools.build_meta"
+
+          [project]
+          name = "ads-ai-hub"
+          version = "0.1.0"
+          description = "Hub multicanal seguro para Meta Ads e TikTok Ads controlado por IA"
+          requires-python = ">=3.12"
+          dependencies = [
+            "fastapi>=0.116,<1",
+            "uvicorn[standard]>=0.35,<1",
+            "httpx>=0.28,<1",
+            "pydantic>=2.11,<3"
+          ]
+
+          [project.optional-dependencies]
+          test = ["pytest>=8.4,<9"]
+
+          [tool.setuptools]
+          packages = ["app", "app.adapters", "app.core"]
+
+          [tool.pytest.ini_options]
+          testpaths = ["tests"]
+          EOF
+
+          cat > "$ROOT/app/__init__.py" <<'EOF'
+          __version__ = "0.1.0"
+          EOF
+          touch "$ROOT/app/adapters/__init__.py" "$ROOT/app/core/__init__.py"
+
+          cat > "$ROOT/app/core/config.py" <<'EOF'
+          import os
+          from dataclasses import dataclass
+
+          def env_bool(name: str, default: bool) -> bool:
+              return os.getenv(name, str(default)).strip().lower() in {"1", "true", "yes", "on"}
+
+          @dataclass(frozen=True)
+          class Settings:
+              environment: str = os.getenv("ADS_ENV", "sandbox")
+              dry_run: bool = env_bool("ADS_DRY_RUN", True)
+              max_budget_increase_pct: float = float(os.getenv("ADS_MAX_BUDGET_INCREASE_PCT", "20"))
+              meta_token: str = os.getenv("META_ACCESS_TOKEN", "")
+              meta_account_id: str = os.getenv("META_AD_ACCOUNT_ID", "")
+              meta_graph_version: str = os.getenv("META_GRAPH_VERSION", "v26.0")
+              tiktok_token: str = os.getenv("TIKTOK_ACCESS_TOKEN", "")
+              tiktok_advertiser_id: str = os.getenv("TIKTOK_ADVERTISER_ID", "")
+              tiktok_api_base: str = os.getenv("TIKTOK_API_BASE", "https://business-api.tiktok.com/open_api/v1.3")
+
+          settings = Settings()
+          EOF
+
+          cat > "$ROOT/app/core/models.py" <<'EOF'
+          from enum import StrEnum
+          from typing import Any
+          from pydantic import BaseModel, Field
+
+          class Platform(StrEnum):
+              META = "meta"
+              TIKTOK = "tiktok"
+
+          class ActionType(StrEnum):
+              PAUSE_CAMPAIGN = "campaign.pause"
+              ACTIVATE_CAMPAIGN = "campaign.activate"
+              UPDATE_BUDGET = "budget.update"
+
+          class ActionRequest(BaseModel):
+              platform: Platform
+              action: ActionType
+              object_id: str = Field(min_length=1)
+              current_budget: float | None = Field(default=None, ge=0)
+              new_budget: float | None = Field(default=None, ge=0)
+              approval_token: str | None = None
+              metadata: dict[str, Any] = Field(default_factory=dict)
+
+          class ActionDecision(BaseModel):
+              allowed: bool
+              requires_approval: bool = False
+              reason: str
+
+          class ActionResult(BaseModel):
+              accepted: bool
+              dry_run: bool
+              platform: Platform
+              action: ActionType
+              object_id: str
+              upstream: dict[str, Any] = Field(default_factory=dict)
+          EOF
+
+          cat > "$ROOT/app/core/policy.py" <<'EOF'
+          from .config import settings
+          from .models import ActionDecision, ActionRequest, ActionType
+
+          def evaluate_action(req: ActionRequest) -> ActionDecision:
+              if req.action != ActionType.UPDATE_BUDGET:
+                  return ActionDecision(allowed=True, reason="policy_allowed")
+              if req.current_budget is None or req.new_budget is None:
+                  return ActionDecision(allowed=False, reason="budget_current_and_new_required")
+              if req.current_budget == 0 and req.new_budget > 0 and not req.approval_token:
+                  return ActionDecision(allowed=False, requires_approval=True, reason="budget_from_zero_requires_approval")
+              if req.current_budget > 0:
+                  increase = ((req.new_budget - req.current_budget) / req.current_budget) * 100
+                  if increase > settings.max_budget_increase_pct and not req.approval_token:
+                      return ActionDecision(allowed=False, requires_approval=True, reason="budget_increase_above_autonomous_limit")
+              return ActionDecision(allowed=True, reason="policy_allowed")
+          EOF
+
+          cat > "$ROOT/app/adapters/base.py" <<'EOF'
+          from abc import ABC, abstractmethod
+          from typing import Any
+          from app.core.models import ActionRequest
+
+          class AdsAdapter(ABC):
+              @abstractmethod
+              async def health(self) -> dict[str, Any]: ...
+              @abstractmethod
+              async def list_campaigns(self) -> dict[str, Any]: ...
+              @abstractmethod
+              async def execute(self, req: ActionRequest) -> dict[str, Any]: ...
+          EOF
+
+          cat > "$ROOT/app/adapters/meta.py" <<'EOF'
+          import httpx
+          from app.adapters.base import AdsAdapter
+          from app.core.config import settings
+          from app.core.models import ActionRequest, ActionType
+
+          class MetaAdapter(AdsAdapter):
+              @property
+              def configured(self) -> bool:
+                  return bool(settings.meta_token and settings.meta_account_id)
+
+              async def health(self):
+                  return {"platform":"meta","configured":self.configured,"mode":"dry-run" if settings.dry_run else "live"}
+
+              async def list_campaigns(self):
+                  if settings.dry_run or not self.configured:
+                      return {"data":[],"dry_run":True,"configured":self.configured}
+                  account = settings.meta_account_id.removeprefix("act_")
+                  url = f"https://graph.facebook.com/{settings.meta_graph_version}/act_{account}/campaigns"
+                  params = {"access_token":settings.meta_token,"fields":"id,name,status,effective_status,daily_budget,lifetime_budget","limit":100}
+                  async with httpx.AsyncClient(timeout=30) as client:
+                      r = await client.get(url, params=params)
+                      r.raise_for_status()
+                      return r.json()
+
+              async def execute(self, req: ActionRequest):
+                  if settings.dry_run or not self.configured:
+                      return {"simulated":True,"action":req.action,"object_id":req.object_id}
+                  payload = {"access_token":settings.meta_token}
+                  if req.action == ActionType.PAUSE_CAMPAIGN:
+                      payload["status"] = "PAUSED"
+                  elif req.action == ActionType.ACTIVATE_CAMPAIGN:
+                      payload["status"] = "ACTIVE"
+                  elif req.action == ActionType.UPDATE_BUDGET:
+                      payload["daily_budget"] = str(int(req.new_budget * 100))
+                  url = f"https://graph.facebook.com/{settings.meta_graph_version}/{req.object_id}"
+                  async with httpx.AsyncClient(timeout=30) as client:
+                      r = await client.post(url, data=payload)
+                      r.raise_for_status()
+                      return r.json()
+          EOF
+
+          cat > "$ROOT/app/adapters/tiktok.py" <<'EOF'
+          import httpx
+          from app.adapters.base import AdsAdapter
+          from app.core.config import settings
+          from app.core.models import ActionRequest, ActionType
+
+          class TikTokAdapter(AdsAdapter):
+              @property
+              def configured(self) -> bool:
+                  return bool(settings.tiktok_token and settings.tiktok_advertiser_id)
+
+              def headers(self):
+                  return {"Access-Token":settings.tiktok_token,"Content-Type":"application/json"}
+
+              async def health(self):
+                  return {"platform":"tiktok","configured":self.configured,"mode":"dry-run" if settings.dry_run else "live"}
+
+              async def list_campaigns(self):
+                  if settings.dry_run or not self.configured:
+                      return {"data":{"list":[]},"dry_run":True,"configured":self.configured}
+                  url = f"{settings.tiktok_api_base}/campaign/get/"
+                  params = {"advertiser_id":settings.tiktok_advertiser_id,"page_size":100}
+                  async with httpx.AsyncClient(timeout=30) as client:
+                      r = await client.get(url, headers=self.headers(), params=params)
+                      r.raise_for_status()
+                      return r.json()
+
+              async def execute(self, req: ActionRequest):
+                  if settings.dry_run or not self.configured:
+                      return {"simulated":True,"action":req.action,"object_id":req.object_id}
+                  if req.action in {ActionType.PAUSE_CAMPAIGN, ActionType.ACTIVATE_CAMPAIGN}:
+                      url = f"{settings.tiktok_api_base}/campaign/status/update/"
+                      op = "DISABLE" if req.action == ActionType.PAUSE_CAMPAIGN else "ENABLE"
+                      payload = {"advertiser_id":settings.tiktok_advertiser_id,"campaign_ids":[req.object_id],"operation_status":op}
+                  else:
+                      url = f"{settings.tiktok_api_base}/campaign/update/"
+                      payload = {"advertiser_id":settings.tiktok_advertiser_id,"campaign_id":req.object_id,"budget":req.new_budget}
+                  async with httpx.AsyncClient(timeout=30) as client:
+                      r = await client.post(url, headers=self.headers(), json=payload)
+                      r.raise_for_status()
+                      return r.json()
+          EOF
+
+          cat > "$ROOT/app/service.py" <<'EOF'
+          from app.adapters.meta import MetaAdapter
+          from app.adapters.tiktok import TikTokAdapter
+          from app.core.config import settings
+          from app.core.models import ActionRequest, ActionResult, Platform
+          from app.core.policy import evaluate_action
+
+          adapters = {Platform.META: MetaAdapter(), Platform.TIKTOK: TikTokAdapter()}
+
+          async def health_all():
+              return {"service":"ads-ai-hub","version":"0.1.0","status":"ok","environment":settings.environment,"dry_run":settings.dry_run,"platforms":[await a.health() for a in adapters.values()]}
+
+          async def list_campaigns(platform: Platform):
+              return await adapters[platform].list_campaigns()
+
+          async def execute(req: ActionRequest):
+              decision = evaluate_action(req)
+              if not decision.allowed:
+                  return {"decision":decision.model_dump(mode="json"),"result":None}
+              upstream = await adapters[req.platform].execute(req)
+              result = ActionResult(accepted=True,dry_run=settings.dry_run,platform=req.platform,action=req.action,object_id=req.object_id,upstream=upstream)
+              return {"decision":decision.model_dump(mode="json"),"result":result.model_dump(mode="json")}
+          EOF
+
+          cat > "$ROOT/app/main.py" <<'EOF'
+          from fastapi import FastAPI, HTTPException
+          from app.core.models import ActionRequest, Platform
+          from app.service import execute, health_all, list_campaigns
+
+          app = FastAPI(title="ADS-AI-HUB", version="0.1.0", description="API canônica multicanal para gestão de mídia paga por IA")
+
+          @app.get("/health")
+          async def health(): return await health_all()
+
+          @app.get("/v1/platforms")
+          async def platforms(): return {"platforms":["meta","tiktok"]}
+
+          @app.get("/v1/campaigns/{platform}")
+          async def campaigns(platform: Platform): return await list_campaigns(platform)
+
+          @app.post("/v1/actions")
+          async def actions(req: ActionRequest):
+              data = await execute(req)
+              if not data["decision"]["allowed"]:
+                  raise HTTPException(status_code=409, detail=data)
+              return data
+          EOF
+
+          cat > "$ROOT/tests/test_hub.py" <<'EOF'
+          from fastapi.testclient import TestClient
+          from app.main import app
+
+          client = TestClient(app)
+
+          def test_health():
+              r = client.get('/health'); assert r.status_code == 200
+              b = r.json(); assert b['status'] == 'ok'; assert b['dry_run'] is True; assert len(b['platforms']) == 2
+
+          def test_platforms():
+              r = client.get('/v1/platforms'); assert r.status_code == 200; assert set(r.json()['platforms']) == {'meta','tiktok'}
+
+          def test_meta_campaigns_sandbox():
+              r = client.get('/v1/campaigns/meta'); assert r.status_code == 200; assert r.json()['dry_run'] is True
+
+          def test_tiktok_campaigns_sandbox():
+              r = client.get('/v1/campaigns/tiktok'); assert r.status_code == 200; assert r.json()['dry_run'] is True
+
+          def test_pause_simulated():
+              r = client.post('/v1/actions', json={'platform':'meta','action':'campaign.pause','object_id':'123'}); assert r.status_code == 200; assert r.json()['result']['upstream']['simulated'] is True
+
+          def test_large_budget_requires_approval():
+              r = client.post('/v1/actions', json={'platform':'tiktok','action':'budget.update','object_id':'abc','current_budget':100,'new_budget':150}); assert r.status_code == 409; assert r.json()['detail']['decision']['requires_approval'] is True
+
+          def test_large_budget_with_approval():
+              r = client.post('/v1/actions', json={'platform':'tiktok','action':'budget.update','object_id':'abc','current_budget':100,'new_budget':150,'approval_token':'owner-approved'}); assert r.status_code == 200
+          EOF
+
+          cat > "$ROOT/policy/ads.rego" <<'EOF'
+          package ads.authz
+          default allow := false
+          allow if { input.action != "budget.update" }
+          allow if { input.action == "budget.update"; input.current_budget > 0; ((input.new_budget-input.current_budget)/input.current_budget)*100 <= 20 }
+          allow if { input.approval_token != "" }
+          EOF
+
+          cat > "$ROOT/Dockerfile" <<'EOF'
+          FROM python:3.12-slim
+          WORKDIR /app
+          COPY pyproject.toml .
+          COPY app ./app
+          RUN pip install --no-cache-dir .
+          EXPOSE 8080
+          CMD ["uvicorn","app.main:app","--host","0.0.0.0","--port","8080"]
+          EOF
+
+          cat > "$ROOT/docker-compose.yml" <<'EOF'
+          services:
+            hub:
+              build: .
+              ports: ["8080:8080"]
+              environment:
+                ADS_ENV: ${ADS_ENV:-sandbox}
+                ADS_DRY_RUN: ${ADS_DRY_RUN:-true}
+                ADS_MAX_BUDGET_INCREASE_PCT: ${ADS_MAX_BUDGET_INCREASE_PCT:-20}
+                META_ACCESS_TOKEN: ${META_ACCESS_TOKEN:-}
+                META_AD_ACCOUNT_ID: ${META_AD_ACCOUNT_ID:-}
+                META_GRAPH_VERSION: ${META_GRAPH_VERSION:-v26.0}
+                TIKTOK_ACCESS_TOKEN: ${TIKTOK_ACCESS_TOKEN:-}
+                TIKTOK_ADVERTISER_ID: ${TIKTOK_ADVERTISER_ID:-}
+              healthcheck:
+                test: ["CMD","python","-c","import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+                interval: 10s
+                timeout: 3s
+                retries: 5
+            postgres:
+              image: postgres:17-alpine
+              environment: {POSTGRES_DB: ads, POSTGRES_USER: ads, POSTGRES_PASSWORD: ads}
+              volumes: ["ads-db:/var/lib/postgresql/data"]
+            nats:
+              image: nats:2.11-alpine
+              command: ["-js"]
+            opa:
+              image: openpolicyagent/opa:latest-static
+              command: ["run","--server","/policy/ads.rego"]
+              volumes: ["./policy:/policy:ro"]
+          volumes: {ads-db: {}}
+          EOF
+
+          cat > "$ROOT/.env.example" <<'EOF'
+          ADS_ENV=sandbox
+          ADS_DRY_RUN=true
+          ADS_MAX_BUDGET_INCREASE_PCT=20
+          META_ACCESS_TOKEN=
+          META_AD_ACCOUNT_ID=
+          META_GRAPH_VERSION=v26.0
+          TIKTOK_ACCESS_TOKEN=
+          TIKTOK_ADVERTISER_ID=
+          EOF
+
+          cat > "$ROOT/.gitignore" <<'EOF'
+          .env
+          .venv/
+          __pycache__/
+          .pytest_cache/
+          *.pyc
+          EOF
+
+          cat > "$ROOT/README.md" <<'EOF'
+          # ADS-AI-HUB
+          Hub multicanal para uma IA controlar Meta Ads e TikTok Ads por uma API única, com sandbox obrigatório por padrão e política de orçamento.
+
+          ## Endpoints
+          - `GET /health`
+          - `GET /v1/platforms`
+          - `GET /v1/campaigns/meta`
+          - `GET /v1/campaigns/tiktok`
+          - `POST /v1/actions`
+          - `GET /docs`
+
+          ## Segurança
+          `ADS_DRY_RUN=true` é o padrão. Nenhuma escrita externa ocorre sem alteração explícita para live e credenciais válidas. Aumentos de orçamento acima do limite autônomo exigem aprovação.
+
+          ## Subir
+          `docker compose up --build -d`
+          EOF
+
+          cp -a "$ROOT/tests" "$LAB/"
+          printf '%s\n' 'Sandbox funcional Meta + TikTok. Testes executados pelo workflow.' > "$LAB/README.md"
+
+      - name: Instalar e testar núcleo
+        shell: bash
+        working-directory: oficina/ads-ai-hub
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -e '.[test]'
+          pytest -q
+
+      - name: Smoke test API
+        shell: bash
+        working-directory: oficina/ads-ai-hub
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from fastapi.testclient import TestClient
+          from app.main import app
+          c=TestClient(app)
+          assert c.get('/health').json()['status']=='ok'
+          assert c.get('/v1/platforms').status_code==200
+          print('SMOKE_OK')
+          PY
+
+      - name: Validar Docker Compose
+        shell: bash
+        working-directory: oficina/ads-ai-hub
+        run: |
+          set -euo pipefail
+          docker compose config >/tmp/compose.txt
+          grep -q 'hub:' /tmp/compose.txt
+          grep -q 'postgres:' /tmp/compose.txt
+          grep -q 'nats:' /tmp/compose.txt
+          grep -q 'opa:' /tmp/compose.txt
+
+      - name: Registrar versão validada
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add oficina/ads-ai-hub laboratorio/ads-ai-hub
+          git diff --cached --quiet && exit 0
+          git commit -m 'feat: ADS-AI-HUB v0.1.0 validado em sandbox'
+          git push
