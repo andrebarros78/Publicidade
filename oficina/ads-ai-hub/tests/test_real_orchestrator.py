@@ -1,5 +1,4 @@
-import os
-import pytest
+import asyncio
 from fastapi.testclient import TestClient
 from agents.stream_events import AgentUpdatedStreamEvent
 
@@ -21,8 +20,7 @@ class FakeStreamResult:
             yield event
 
 
-@pytest.mark.asyncio
-async def test_orchestrator_mirrors_real_agent_changes_to_task_bus_contract():
+def test_orchestrator_mirrors_real_agent_changes_to_task_bus_contract():
     team = build_team(model='test-model')
     strategy = team.agents['marketing_strategist']
     market = team.agents['market_intelligence']
@@ -39,18 +37,21 @@ async def test_orchestrator_mirrors_real_agent_changes_to_task_bus_contract():
         assert max_turns == 12
         return FakeStreamResult(events, market, 'plano concluído')
 
-    result = await execute_mission(
-        MissionRequest(
-            mission_id='mission-test-1',
-            objective='Diagnosticar oportunidade e definir estratégia',
-            task_type='strategy',
-            priority='high',
-            max_turns=12,
-        ),
-        publish,
-        team=team,
-        runner_factory=fake_runner,
-    )
+    async def scenario():
+        return await execute_mission(
+            MissionRequest(
+                mission_id='mission-test-1',
+                objective='Diagnosticar oportunidade e definir estratégia',
+                task_type='strategy',
+                priority='high',
+                max_turns=12,
+            ),
+            publish,
+            team=team,
+            runner_factory=fake_runner,
+        )
+
+    result = asyncio.run(scenario())
 
     assert result['status'] == 'completed'
     assert result['last_agent_id'] == 'market_intelligence'
