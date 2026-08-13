@@ -48,6 +48,22 @@ def model_policy():
     return json.loads(POLICY_PATH.read_text(encoding='utf-8'))
 
 
+def asset_manifest():
+    return model_policy().get('agency_3d_assets', {})
+
+
+def approved_asset(agent_id: str):
+    manifest = asset_manifest()
+    asset = (manifest.get('assets') or {}).get(agent_id) or {}
+    validation = asset.get('validation') or {}
+    if asset.get('status') != 'approved' or validation.get('passed') is not True:
+        return None
+    if asset.get('rig_profile') != manifest.get('rig_profile'):
+        return None
+    model_url = asset.get('model_url')
+    return asset if isinstance(model_url, str) and model_url.strip() else None
+
+
 def _expected_level(system_primary: bool) -> int:
     return 1 if system_primary else 2
 
@@ -106,17 +122,38 @@ def team():
     return {'agents':[p.__dict__ for p in posts()], 'controls':owner_controls()}
 
 
+@router.get('/asset-manifest')
+def get_asset_manifest():
+    manifest = asset_manifest()
+    assets = manifest.get('assets') or {}
+    return {
+        **manifest,
+        'assets': {
+            agent_id: {
+                'status': value.get('status', 'pending'),
+                'model_url': value.get('model_url') if approved_asset(agent_id) else None,
+                'rig_profile': value.get('rig_profile'),
+                'validation': value.get('validation', {}),
+            }
+            for agent_id, value in assets.items()
+        },
+    }
+
+
 @router.get('/visual-state')
 def visual_state():
     """Canonical visual state consumed by the 3D office.
 
-    Until the production task/event bus is attached, agents without an active
-    backend task are truthfully represented as REST instead of simulated work.
-    Asset URLs remain null until a validated GLB is assigned.
+    Agents without a real task remain REST. A model URL is released only when
+    the canonical asset manifest marks that GLB as approved and validated.
     """
+    manifest = asset_manifest()
+    rig_profile = manifest.get('rig_profile', 'ads-humanoid-v1')
+    animation_contract = manifest.get('animation_contract', 'ads-agent-animation/v1')
     agents = []
     for post in posts():
         room, destination, tool = VISUAL_POSTS.get(post.id, ('rest', 'rest_seat', 'none'))
+        asset = approved_asset(post.id)
         agents.append({
             'agent_id': post.id,
             'title': post.title,
@@ -131,14 +168,16 @@ def visual_state():
             'priority': 'normal',
             'tool': 'none',
             'work_tool': tool,
-            'model_url': None,
-            'rig_profile': 'ads-humanoid-v1',
+            'model_url': asset.get('model_url') if asset else None,
+            'asset_status': 'approved' if asset else 'pending',
+            'rig_profile': rig_profile,
             'updated_at': None,
         })
     return {
         'contract_version': 'ads-agent-visual-state/v1',
-        'animation_contract': 'ads-agent-animation/v1',
-        'rig_profile': 'ads-humanoid-v1',
+        'asset_manifest_version': manifest.get('version'),
+        'animation_contract': animation_contract,
+        'rig_profile': rig_profile,
         'source': 'ads-ai-hub',
         'task_bus_connected': False,
         'agents': agents,
