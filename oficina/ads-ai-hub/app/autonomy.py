@@ -112,6 +112,7 @@ def visual_state():
 
     Until the production task/event bus is attached, agents without an active
     backend task are truthfully represented as REST instead of simulated work.
+    Asset URLs remain null until a validated GLB is assigned.
     """
     agents = []
     for post in posts():
@@ -130,10 +131,14 @@ def visual_state():
             'priority': 'normal',
             'tool': 'none',
             'work_tool': tool,
+            'model_url': None,
+            'rig_profile': 'ads-humanoid-v1',
             'updated_at': None,
         })
     return {
         'contract_version': 'ads-agent-visual-state/v1',
+        'animation_contract': 'ads-agent-animation/v1',
+        'rig_profile': 'ads-humanoid-v1',
         'source': 'ads-ai-hub',
         'task_bus_connected': False,
         'agents': agents,
