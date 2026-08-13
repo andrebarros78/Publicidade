@@ -43,6 +43,60 @@ def test_realtime_sse_route_is_registered():
     assert '/v1/autonomy/events' in routes
 
 
+def test_task_bus_accepts_known_agent_and_exposes_current_state():
+    before = client.get('/v1/autonomy/task-state').json()['sequence']
+    payload = {
+        'agent_id': 'meta_media_buyer',
+        'operational_state': 'working',
+        'task_id': 'task-real-1',
+        'task_type': 'campaign_optimization',
+        'room': 'paid_media',
+        'destination': 'meta_station',
+        'progress': 42,
+        'priority': 'high',
+        'tool': 'computer',
+        'source': 'production',
+    }
+    r = client.post('/v1/autonomy/task-state', json=payload)
+    assert r.status_code == 200
+    event = r.json()['event']
+    assert event['sequence'] > before
+    assert event['agent_id'] == 'meta_media_buyer'
+    state = client.get('/v1/autonomy/task-state').json()
+    assert state['connected'] is True
+    assert state['source'] == 'production-only'
+    assert state['agents']['meta_media_buyer']['task_id'] == 'task-real-1'
+
+
+def test_task_bus_rejects_unknown_agent():
+    r = client.post('/v1/autonomy/task-state', json={
+        'agent_id': 'not_an_agent',
+        'operational_state': 'working',
+        'source': 'production',
+    })
+    assert r.status_code == 404
+
+
+def test_task_bus_rejects_simulation_as_canonical_state():
+    r = client.post('/v1/autonomy/task-state', json={
+        'agent_id': 'budget_allocator',
+        'operational_state': 'working',
+        'task_id': 'simulated-task',
+        'source': 'digital-twin',
+    })
+    assert r.status_code == 409
+
+
+def test_task_bus_validates_progress_range():
+    r = client.post('/v1/autonomy/task-state', json={
+        'agent_id': 'copywriter',
+        'operational_state': 'working',
+        'progress': 101,
+        'source': 'production',
+    })
+    assert r.status_code == 422
+
+
 def test_system_primary_route_selects_openai():
     r = client.get('/v1/autonomy/model-route?system_primary=true')
     assert r.status_code == 200
