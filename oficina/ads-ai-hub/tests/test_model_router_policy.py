@@ -15,6 +15,29 @@ def test_policy_is_free_first_and_replaceable():
     assert body['provider_lock_in'] is False
 
 
+def test_asset_manifest_contract_is_present():
+    r = client.get('/v1/autonomy/asset-manifest')
+    assert r.status_code == 200
+    body = r.json()
+    assert body['version'] == 'ads-agency-3d-assets/v1'
+    assert body['rig_profile'] == 'ads-humanoid-v1'
+    assert body['animation_contract'] == 'ads-agent-animation/v1'
+    assert 'Walk' in body['required_animations']
+    assert 'Use_Computer' in body['required_animations']
+    assert 'Hips' in body['required_bones']
+    assert body['limits']['max_file_mb'] > 0
+
+
+def test_visual_state_does_not_release_unapproved_assets():
+    r = client.get('/v1/autonomy/visual-state')
+    assert r.status_code == 200
+    body = r.json()
+    assert body['asset_manifest_version'] == 'ads-agency-3d-assets/v1'
+    assert len(body['agents']) == 16
+    assert all(agent['model_url'] is None for agent in body['agents'])
+    assert all(agent['asset_status'] == 'pending' for agent in body['agents'])
+
+
 def test_system_primary_route_selects_openai():
     r = client.get('/v1/autonomy/model-route?system_primary=true')
     assert r.status_code == 200
