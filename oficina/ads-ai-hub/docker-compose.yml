@@ -6,6 +6,7 @@ services:
       ADS_ENV: ${ADS_ENV:-sandbox}
       ADS_DRY_RUN: ${ADS_DRY_RUN:-true}
       ADS_MAX_BUDGET_INCREASE_PCT: ${ADS_MAX_BUDGET_INCREASE_PCT:-20}
+      ADS_VAULT_MODEL_GATEWAY_URL: ${ADS_VAULT_MODEL_GATEWAY_URL:-http://host.docker.internal:13000/api/adsControlCenter:modelCompletion}
       META_ACCESS_TOKEN: ${META_ACCESS_TOKEN:-}
       META_AD_ACCOUNT_ID: ${META_AD_ACCOUNT_ID:-}
       META_GRAPH_VERSION: ${META_GRAPH_VERSION:-v26.0}
