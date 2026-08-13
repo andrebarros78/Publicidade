@@ -2,6 +2,7 @@ import asyncio
 import json
 from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from app.core.models import ActionRequest, Platform
 from app.service import execute, health_all, list_campaigns
@@ -10,6 +11,13 @@ from app.finance import router as cockpit_router, init_finance_store
 from app.ai_spend import router as ai_spend_router, init_ai_spend_store
 
 app = FastAPI(title="ADS-AI-HUB", version="0.4.0", description="API canônica multicanal com núcleo autônomo, cockpit financeiro persistente e AI Spend Guard")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET"],
+    allow_headers=["*"],
+    allow_credentials=False,
+)
 app.include_router(autonomy_router)
 app.include_router(cockpit_router)
 app.include_router(ai_spend_router)
