@@ -4,18 +4,20 @@ from app.core.config import settings
 from app.core.models import ActionRequest, ActionResult, Platform
 from app.core.policy import evaluate_action
 from app.finance import cockpit_state
+from app.autonomy import model_policy
 
 adapters = {Platform.META: MetaAdapter(), Platform.TIKTOK: TikTokAdapter()}
 
 async def health_all():
     return {
         "service": "ads-ai-hub",
-        "version": "0.2.0",
+        "version": "0.3.0",
         "status": "ok",
         "environment": settings.environment,
         "dry_run": settings.dry_run,
         "platforms": [await a.health() for a in adapters.values()],
         "cockpit": cockpit_state(),
+        "model_router": model_policy(),
     }
 
 async def list_campaigns(platform: Platform):
