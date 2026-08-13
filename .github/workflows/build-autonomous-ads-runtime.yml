@@ -8,7 +8,10 @@ on:
       - 'oficina/ads-ai-hub/app/finance.py'
       - 'oficina/ads-ai-hub/app/service.py'
       - 'oficina/ads-ai-hub/app/main.py'
+      - 'oficina/ads-ai-hub/app/autonomy.py'
+      - 'oficina/ads-ai-hub/config/model-router-policy.json'
       - 'oficina/ads-ai-hub/tests/test_cockpit_finance.py'
+      - 'oficina/ads-ai-hub/tests/test_model_router_policy.py'
   workflow_dispatch:
 
 permissions:
@@ -32,13 +35,19 @@ jobs:
           cd oficina/ads-ai-hub
           pytest -q tests/test_cockpit_finance.py
 
+      - name: Validar Model Router FREE-FIRST
+        shell: bash
+        run: |
+          cd oficina/ads-ai-hub
+          pytest -q tests/test_model_router_policy.py
+
       - name: Validar runtime multiagente completo
         shell: bash
         run: |
           cd oficina/ads-ai-hub
           pytest -q
 
-      - name: Smoke test dos endpoints do cockpit
+      - name: Smoke test dos endpoints do cockpit e router
         shell: bash
         run: |
           cd oficina/ads-ai-hub
@@ -52,18 +61,14 @@ jobs:
           h=c.get('/health'); assert h.status_code == 200
           assert 'cockpit' in h.json()
           assert h.json()['cockpit']['ready'] is False
-          r=c.get('/v1/cockpit'); assert r.status_code == 200 and r.json()['ready'] is False
-          r=c.post('/v1/cockpit/financial-snapshot', json={
-            'budget_authorized':10000,'spend':4000,'revenue':24000,
-            'meta_spend':2500,'tiktok_spend':1500,'currency':'BRL','source':'ci'
-          })
-          assert r.status_code == 201
-          body=c.get('/v1/cockpit').json()
-          assert body['ready'] is True
-          assert body['financial']['roas'] == 6.0
-          assert body['platform_mix']['meta'] == 0.625
-          h=c.get('/health').json()
-          assert h['cockpit']['financial']['roas'] == 6.0
-          print('FINANCIAL_COCKPIT=OK')
-          print('HEALTH_COCKPIT=OK')
+          p=c.get('/v1/autonomy/model-policy'); assert p.status_code == 200
+          assert p.json()['mode'] == 'FREE-FIRST'
+          r=c.get('/v1/autonomy/model-route'); assert r.status_code == 200
+          assert r.json()['selected']['provider'] == 'groq'
+          r=c.get('/v1/autonomy/model-route?system_primary=true'); assert r.status_code == 200
+          assert r.json()['selected']['provider'] == 'openai'
+          r=c.get('/v1/autonomy/model-route?allow_paid=true'); assert r.status_code == 409
+          print('MODEL_ROUTER=OK')
+          print('FREE_FIRST=OK')
+          print('PAID_AUX_BLOCK=OK')
           PY
