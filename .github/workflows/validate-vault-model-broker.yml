@@ -1,0 +1,41 @@
+name: Validate Vault Model Broker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/validate-vault-model-broker.yml'
+      - 'oficina/ads-ai-hub/app/main.py'
+      - 'oficina/ads-ai-hub/docker-compose.yml'
+      - 'oficina/ads-ai-hub/.env.example'
+      - 'oficina/ads-ai-hub/agentic/runtime/orchestrator.py'
+      - 'oficina/ads-ai-hub/tests/test_real_orchestrator.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-broker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install runtime
+        run: |
+          cd oficina/ads-ai-hub
+          python -m pip install -q -e '.[test]'
+      - name: Test vault-routed orchestrator contract
+        run: |
+          cd oficina/ads-ai-hub
+          pytest -q tests/test_real_orchestrator.py
+      - name: Validate compose
+        run: |
+          cd oficina/ads-ai-hub
+          docker compose config > /tmp/ads-hub-compose.yml
+          python - <<'PY'
+          from pathlib import Path
+          text = Path('/tmp/ads-hub-compose.yml').read_text()
+          assert 'ADS_VAULT_MODEL_GATEWAY_URL' in text
+          assert 'host.docker.internal:13000/api/adsControlCenter:modelCompletion' in text
+          print('VAULT_MODEL_GATEWAY_COMPOSE=OK')
+          PY
