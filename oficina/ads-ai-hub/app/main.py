@@ -1,5 +1,6 @@
 import asyncio
 import json
+import uuid
 from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,8 +12,9 @@ from app.autonomy import router as autonomy_router, visual_state
 from app.finance import router as cockpit_router, init_finance_store
 from app.ai_spend import router as ai_spend_router, init_ai_spend_store
 from agentic.runtime.team import posts
+from agentic.runtime.orchestrator import MissionConfigurationError, MissionRequest, execute_mission
 
-app = FastAPI(title="ADS-AI-HUB", version="0.5.0", description="API canônica multicanal com núcleo autônomo, cockpit financeiro, AI Spend Guard e task bus realtime")
+app = FastAPI(title="ADS-AI-HUB", version="0.6.0", description="API canônica multicanal com núcleo autônomo, cockpit financeiro, AI Spend Guard, task bus realtime e orquestrador multiagente")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET", "POST"], allow_headers=["*"], allow_credentials=False)
 app.include_router(autonomy_router)
 app.include_router(cockpit_router)
@@ -35,6 +37,14 @@ class AgentTaskStateIn(BaseModel):
     priority: str = 'normal'
     tool: str | None = None
     source: str = 'production'
+
+
+class MissionRunIn(BaseModel):
+    objective: str = Field(min_length=3, max_length=12000)
+    mission_id: str | None = Field(default=None, max_length=120)
+    task_type: str = Field(default='ads_operation', min_length=1, max_length=120)
+    priority: str = Field(default='normal', min_length=1, max_length=40)
+    max_turns: int = Field(default=20, ge=1, le=100)
 
 
 def _next_event_sequence():
@@ -97,6 +107,21 @@ async def task_state(data: AgentTaskStateIn):
 @app.get("/v1/autonomy/task-state")
 async def current_task_state():
     return {'connected': True, 'source': 'production-only', 'sequence': _event_sequence, 'agents': _agent_task_state}
+
+@app.post("/v1/autonomy/missions/run")
+async def run_mission(data: MissionRunIn):
+    mission_id = data.mission_id or f"mission-{uuid.uuid4().hex[:12]}"
+    request = MissionRequest(
+        mission_id=mission_id,
+        objective=data.objective,
+        task_type=data.task_type,
+        priority=data.priority,
+        max_turns=data.max_turns,
+    )
+    try:
+        return await execute_mission(request, publish_agent_state)
+    except MissionConfigurationError as exc:
+        raise HTTPException(status_code=503, detail={'reason': 'agent_runtime_not_configured', 'message': str(exc)}) from exc
 
 @app.get("/v1/autonomy/events")
 async def autonomy_events(request: Request):
