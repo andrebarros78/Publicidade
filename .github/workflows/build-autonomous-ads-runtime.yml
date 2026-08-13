@@ -9,9 +9,11 @@ on:
       - 'oficina/ads-ai-hub/app/service.py'
       - 'oficina/ads-ai-hub/app/main.py'
       - 'oficina/ads-ai-hub/app/autonomy.py'
+      - 'oficina/ads-ai-hub/app/ai_spend.py'
       - 'oficina/ads-ai-hub/config/model-router-policy.json'
       - 'oficina/ads-ai-hub/tests/test_cockpit_finance.py'
       - 'oficina/ads-ai-hub/tests/test_model_router_policy.py'
+      - 'oficina/ads-ai-hub/tests/test_ai_spend_guard.py'
   workflow_dispatch:
 
 permissions:
@@ -41,13 +43,19 @@ jobs:
           cd oficina/ads-ai-hub
           pytest -q tests/test_model_router_policy.py
 
+      - name: Validar AI Spend Guard
+        shell: bash
+        run: |
+          cd oficina/ads-ai-hub
+          pytest -q tests/test_ai_spend_guard.py
+
       - name: Validar runtime multiagente completo
         shell: bash
         run: |
           cd oficina/ads-ai-hub
           pytest -q
 
-      - name: Smoke test dos endpoints do cockpit e router
+      - name: Smoke test dos endpoints do cockpit, router e spend guard
         shell: bash
         run: |
           cd oficina/ads-ai-hub
@@ -55,20 +63,18 @@ jobs:
           import os, tempfile
           fd,path=tempfile.mkstemp(suffix='.sqlite3'); os.close(fd); os.unlink(path)
           os.environ['ADS_FINANCE_DB']=path
+          fd,path2=tempfile.mkstemp(suffix='.sqlite3'); os.close(fd); os.unlink(path2)
+          os.environ['ADS_AI_SPEND_DB']=path2
+          os.environ['ADS_AUX_AI_MONTHLY_BUDGET_BRL']='0'
           from fastapi.testclient import TestClient
           from app.main import app
           c=TestClient(app)
           h=c.get('/health'); assert h.status_code == 200
-          assert 'cockpit' in h.json()
-          assert h.json()['cockpit']['ready'] is False
-          p=c.get('/v1/autonomy/model-policy'); assert p.status_code == 200
-          assert p.json()['mode'] == 'FREE-FIRST'
-          r=c.get('/v1/autonomy/model-route'); assert r.status_code == 200
-          assert r.json()['selected']['provider'] == 'groq'
-          r=c.get('/v1/autonomy/model-route?system_primary=true'); assert r.status_code == 200
-          assert r.json()['selected']['provider'] == 'openai'
-          r=c.get('/v1/autonomy/model-route?allow_paid=true'); assert r.status_code == 409
+          p=c.get('/v1/autonomy/model-policy'); assert p.status_code == 200 and p.json()['mode'] == 'FREE-FIRST'
+          s=c.get('/v1/autonomy/ai-spend'); assert s.status_code == 200 and s.json()['free_first_enforced'] is True
+          r=c.post('/v1/autonomy/ai-spend/check', json={'agent':'copywriter','provider':'paid','model':'premium','estimated_cost_brl':0.01,'auxiliary':True}); assert r.status_code == 409
+          z=c.post('/v1/autonomy/ai-spend/check', json={'agent':'market_intelligence','provider':'qwen','model':'free','estimated_cost_brl':0,'auxiliary':True}); assert z.status_code == 200
           print('MODEL_ROUTER=OK')
-          print('FREE_FIRST=OK')
-          print('PAID_AUX_BLOCK=OK')
+          print('AI_SPEND_GUARD=OK')
+          print('AUX_BUDGET_ZERO=OK')
           PY
