@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
+from typing import Literal
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, Field
 from agentic.runtime.team import posts, owner_controls
 from agentic.digital_twin.engine import DigitalTwin
 
@@ -8,8 +10,75 @@ router = APIRouter(prefix='/v1/autonomy', tags=['autonomy'])
 POLICY_PATH = Path(__file__).resolve().parents[1] / 'config' / 'model-router-policy.json'
 
 
+class ProviderReadiness(BaseModel):
+    provider: str = Field(min_length=1, max_length=80)
+    vault_level: Literal[1, 2]
+    configured: bool
+    validated: bool
+    enabled: bool = True
+
+
+class RouteEvaluationIn(BaseModel):
+    system_primary: bool = False
+    allow_paid: bool = False
+    providers: list[ProviderReadiness] = Field(default_factory=list)
+
+
 def model_policy():
     return json.loads(POLICY_PATH.read_text(encoding='utf-8'))
+
+
+def _expected_level(system_primary: bool) -> int:
+    return 1 if system_primary else 2
+
+
+def _eligible(readiness: ProviderReadiness, expected_level: int) -> bool:
+    return (
+        readiness.vault_level == expected_level
+        and readiness.configured
+        and readiness.validated
+        and readiness.enabled
+    )
+
+
+def evaluate_model_route(data: RouteEvaluationIn):
+    policy = model_policy()
+    if data.allow_paid and not policy['paid_auxiliaries_enabled']:
+        raise HTTPException(status_code=409, detail='paid auxiliary routes are disabled by FREE-FIRST policy')
+
+    expected_level = _expected_level(data.system_primary)
+    readiness = {item.provider.lower(): item for item in data.providers}
+
+    if data.system_primary:
+        provider = str(policy['system_primary']['provider']).lower()
+        item = readiness.get(provider)
+        if not item or not _eligible(item, expected_level):
+            raise HTTPException(status_code=503, detail={
+                'reason': 'system_primary_provider_not_ready',
+                'provider': provider,
+                'required_vault_level': expected_level,
+            })
+        return {
+            'mode': policy['mode'],
+            'selected': policy['system_primary'],
+            'fallbacks': [],
+            'source': 'vault-readiness',
+        }
+
+    ordered = [str(p).lower() for p in policy['agent_provider_order']]
+    eligible = [provider for provider in ordered if provider in readiness and _eligible(readiness[provider], expected_level)]
+    if not eligible:
+        raise HTTPException(status_code=503, detail={
+            'reason': 'no_ready_free_agent_provider',
+            'required_vault_level': expected_level,
+        })
+
+    return {
+        'mode': policy['mode'],
+        'selected': {'provider': eligible[0], 'role': 'agent-free'},
+        'fallbacks': [{'provider': p, 'role': 'agent-free'} for p in eligible[1:]],
+        'source': 'vault-readiness',
+    }
 
 
 @router.get('/team')
@@ -32,6 +101,7 @@ def get_model_route(system_primary: bool = Query(False), allow_paid: bool = Quer
             'mode': policy['mode'],
             'selected': policy['system_primary'],
             'fallbacks': [],
+            'source': 'policy-only',
         }
     providers = policy['agent_provider_order']
     if not providers:
@@ -40,7 +110,13 @@ def get_model_route(system_primary: bool = Query(False), allow_paid: bool = Quer
         'mode': policy['mode'],
         'selected': {'provider': providers[0], 'role': 'agent-free'},
         'fallbacks': [{'provider': p, 'role': 'agent-free'} for p in providers[1:]],
+        'source': 'policy-only',
     }
+
+
+@router.post('/model-route/evaluate')
+def post_model_route_evaluate(data: RouteEvaluationIn):
+    return evaluate_model_route(data)
 
 
 @router.post('/digital-twin')
