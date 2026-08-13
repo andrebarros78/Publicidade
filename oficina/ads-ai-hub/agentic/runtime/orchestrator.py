@@ -4,8 +4,7 @@ import os
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
-from agents import Runner
-from agents.stream_events import AgentUpdatedStreamEvent
+from agents import RunHooks, Runner
 
 from agentic.runtime.autonomous_team import RuntimeTeam, build_team
 
@@ -43,15 +42,14 @@ async def execute_mission(
     team: RuntimeTeam | None = None,
     runner_factory: Callable[..., Any] | None = None,
 ) -> dict[str, Any]:
-    """Run a production mission through the Agents SDK and mirror agent changes to the Task Bus.
+    """Run a production mission and mirror only actual agent lifecycle changes to the Task Bus.
 
-    The orchestrator never fabricates specialists. Only agents actually selected by the SDK are
-    marked active. Every touched agent is returned to REST when the mission finishes or fails.
+    Non-stream Runner hooks are used deliberately so the model may be served by the vault-backed
+    broker without exposing provider credentials to ADS-AI-HUB. Handoffs remain native SDK handoffs.
     """
     runtime_team = team or build_team(model=configured_model())
-    run_streamed = runner_factory or Runner.run_streamed
+    run_agent = runner_factory or Runner.run
     name_to_id = agent_id_by_name(runtime_team)
-    chief_id = "chief_ads_officer"
     touched: list[str] = []
     current_id: str | None = None
 
@@ -69,27 +67,33 @@ async def execute_mission(
             **extra,
         })
 
-    try:
-        current_id = chief_id
-        await set_state(chief_id, "working", 1)
-        result = run_streamed(runtime_team.chief, request.objective, max_turns=request.max_turns)
-
-        async for event in result.stream_events():
-            if not isinstance(event, AgentUpdatedStreamEvent):
-                continue
-            next_id = name_to_id.get(event.new_agent.name)
-            if not next_id or next_id == current_id:
-                continue
-            if current_id:
+    class MissionHooks(RunHooks):
+        async def on_agent_start(self, context, agent):
+            nonlocal current_id
+            next_id = name_to_id.get(agent.name)
+            if not next_id:
+                return
+            if current_id and current_id != next_id:
                 await set_state(current_id, "waiting", 50)
             current_id = next_id
-            await set_state(next_id, "working", 50)
+            await set_state(next_id, "working", 1 if next_id == "chief_ads_officer" else 50)
 
+        async def on_handoff(self, context, from_agent, to_agent):
+            # on_agent_start performs the canonical state transition; this hook exists so
+            # handoff semantics remain explicit and observable without duplicate events.
+            return None
+
+    try:
+        result = await run_agent(
+            runtime_team.chief,
+            request.objective,
+            max_turns=request.max_turns,
+            hooks=MissionHooks(),
+        )
         if current_id:
             await set_state(current_id, "working", 100)
-
         final_output = result.final_output
-        last_agent_id = name_to_id.get(getattr(result.last_agent, "name", ""), current_id or chief_id)
+        last_agent_id = name_to_id.get(getattr(result.last_agent, "name", ""), current_id or "chief_ads_officer")
         return {
             "mission_id": request.mission_id,
             "status": "completed",
