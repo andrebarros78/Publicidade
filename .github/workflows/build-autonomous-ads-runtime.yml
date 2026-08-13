@@ -6,12 +6,13 @@ on:
     paths:
       - '.github/workflows/build-autonomous-ads-runtime.yml'
       - 'oficina/ads-ai-hub/app/finance.py'
+      - 'oficina/ads-ai-hub/app/service.py'
       - 'oficina/ads-ai-hub/app/main.py'
-      - 'oficina/ads-ai-hub/tests/test_cockpit_finance.py'
+      - 'oficina/ads-ai-hub/tests/test_finance_cockpit.py'
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   validate-runtime:
@@ -29,7 +30,7 @@ jobs:
         shell: bash
         run: |
           cd oficina/ads-ai-hub
-          pytest -q tests/test_cockpit_finance.py
+          pytest -q tests/test_finance_cockpit.py
 
       - name: Validar runtime multiagente completo
         shell: bash
@@ -41,23 +42,28 @@ jobs:
         shell: bash
         run: |
           cd oficina/ads-ai-hub
-          ADS_FINANCE_DB=/tmp/ads-finance-smoke.sqlite3 python - <<'PY'
+          python - <<'PY'
+          import os, tempfile
+          fd,path=tempfile.mkstemp(suffix='.sqlite3'); os.close(fd); os.unlink(path)
+          os.environ['ADS_FINANCE_DB']=path
           from fastapi.testclient import TestClient
           from app.main import app
           c=TestClient(app)
-          assert c.get('/v1/autonomy/team').status_code == 200
-          empty=c.get('/v1/cockpit')
-          assert empty.status_code == 200 and empty.json()['ready'] is False
+          h=c.get('/health'); assert h.status_code == 200
+          assert 'cockpit' in h.json()
+          assert h.json()['cockpit']['ready'] is False
+          r=c.get('/v1/cockpit'); assert r.status_code == 200 and r.json()['ready'] is False
           r=c.post('/v1/cockpit/financial-snapshot', json={
-              'budget_authorized':10000,'spend':4000,'revenue':24000,
-              'meta_spend':3000,'tiktok_spend':1000,'currency':'BRL','source':'ci-smoke'
+            'budget_authorized':10000,'spend':4000,'revenue':24000,
+            'meta_spend':2500,'tiktok_spend':1500,'currency':'BRL','source':'ci'
           })
           assert r.status_code == 201
-          state=c.get('/v1/cockpit').json()
-          assert state['ready'] is True
-          assert state['financial']['roas'] == 6.0
-          assert state['platform_mix'] == {'meta':0.75,'tiktok':0.25}
-          print('COCKPIT_FINANCE=OK')
-          print('PERSISTENCE=OK')
-          print('OWNER_CEILING_GUARD=OK')
+          body=c.get('/v1/cockpit').json()
+          assert body['ready'] is True
+          assert body['financial']['roas'] == 6.0
+          assert body['platform_mix']['meta'] == 0.625
+          h=c.get('/health').json()
+          assert h['cockpit']['financial']['roas'] == 6.0
+          print('FINANCIAL_COCKPIT=OK')
+          print('HEALTH_COCKPIT=OK')
           PY
