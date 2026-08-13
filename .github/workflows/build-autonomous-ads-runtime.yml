@@ -8,7 +8,7 @@ on:
       - 'oficina/ads-ai-hub/app/finance.py'
       - 'oficina/ads-ai-hub/app/service.py'
       - 'oficina/ads-ai-hub/app/main.py'
-      - 'oficina/ads-ai-hub/tests/test_finance_cockpit.py'
+      - 'oficina/ads-ai-hub/tests/test_cockpit_finance.py'
   workflow_dispatch:
 
 permissions:
@@ -30,7 +30,7 @@ jobs:
         shell: bash
         run: |
           cd oficina/ads-ai-hub
-          pytest -q tests/test_finance_cockpit.py
+          pytest -q tests/test_cockpit_finance.py
 
       - name: Validar runtime multiagente completo
         shell: bash
