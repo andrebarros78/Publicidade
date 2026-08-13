@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "mode": "FREE-FIRST",
+  "system_primary": {
+    "provider": "openai",
+    "role": "system-primary",
+    "replaceable": true
+  },
+  "agent_provider_order": [
+    "groq",
+    "qwen",
+    "glm",
+    "deepseek",
+    "kimi",
+    "siliconflow"
+  ],
+  "paid_auxiliaries_enabled": false,
+  "provider_lock_in": false,
+  "selection_dimensions": [
+    "quality",
+    "cost",
+    "latency",
+    "context",
+    "capability",
+    "reliability"
+  ],
+  "vault_levels": {
+    "1": "IA Principal / Sistema",
+    "2": "IA dos Agentes",
+    "3": "Credenciais Operacionais"
+  },
+  "rules": [
+    "agents request capability, never a fixed provider",
+    "free routes are preferred for agent workloads",
+    "paid auxiliary routes are denied while FREE-FIRST is active",
+    "system primary AI is replaceable through configuration",
+    "secret values are resolved only by the vault layer"
+  ]
+}
