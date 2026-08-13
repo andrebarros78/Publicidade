@@ -11,6 +11,7 @@ on:
       - 'oficina/ads-ai-hub/app/autonomy.py'
       - 'oficina/ads-ai-hub/app/ai_spend.py'
       - 'oficina/ads-ai-hub/config/model-router-policy.json'
+      - 'oficina/ads-ai-hub/assets/agency-3d/**'
       - 'oficina/ads-ai-hub/tests/test_cockpit_finance.py'
       - 'oficina/ads-ai-hub/tests/test_model_router_policy.py'
       - 'oficina/ads-ai-hub/tests/test_ai_spend_guard.py'
@@ -31,13 +32,121 @@ jobs:
           cd oficina/ads-ai-hub
           python -m pip install -q -e '.[test]'
 
+      - name: Validar manifesto e GLBs da Agência 3D
+        shell: bash
+        run: |
+          cd oficina/ads-ai-hub
+          python - <<'PY'
+          import json, math, struct
+          from pathlib import Path
+
+          cfg = json.loads(Path('config/model-router-policy.json').read_text(encoding='utf-8'))
+          manifest = cfg['agency_3d_assets']
+          assert manifest['version'] == 'ads-agency-3d-assets/v1'
+          assert manifest['rig_profile'] == 'ads-humanoid-v1'
+          assert manifest['animation_contract'] == 'ads-agent-animation/v1'
+          required_bones = set(manifest['required_bones'])
+          required_anims = set(manifest['required_animations'])
+          limits = manifest['limits']
+          assert required_bones and required_anims
+          assert limits['max_file_mb'] > 0
+
+          def parse_glb(path: Path):
+              data = path.read_bytes()
+              assert len(data) >= 20, f'{path}: GLB too small'
+              magic, version, total = struct.unpack_from('<4sII', data, 0)
+              assert magic == b'glTF', f'{path}: invalid GLB magic'
+              assert version == 2, f'{path}: GLB version must be 2'
+              assert total == len(data), f'{path}: declared length mismatch'
+              offset = 12
+              doc = None
+              while offset + 8 <= len(data):
+                  length, chunk_type = struct.unpack_from('<II', data, offset)
+                  offset += 8
+                  chunk = data[offset:offset + length]
+                  offset += length
+                  if chunk_type == 0x4E4F534A:
+                      doc = json.loads(chunk.rstrip(b'\x00 \t\r\n').decode('utf-8'))
+                      break
+              assert doc is not None, f'{path}: JSON chunk missing'
+              return data, doc
+
+          def validate_asset(agent_id, asset):
+              status = asset.get('status', 'pending')
+              if status != 'approved':
+                  return
+              assert asset.get('model_url'), f'{agent_id}: approved asset missing model_url'
+              assert asset.get('rig_profile') == manifest['rig_profile'], f'{agent_id}: rig mismatch'
+              validation = asset.get('validation') or {}
+              assert validation.get('passed') is True, f'{agent_id}: approval without passed validation'
+              local_path = asset.get('local_path')
+              assert local_path, f'{agent_id}: approved asset missing local_path'
+              path = Path(local_path)
+              assert path.exists() and path.suffix.lower() == '.glb', f'{agent_id}: GLB not found: {path}'
+              size_mb = path.stat().st_size / (1024 * 1024)
+              assert size_mb <= limits['max_file_mb'], f'{agent_id}: GLB too large: {size_mb:.2f} MB'
+              _, doc = parse_glb(path)
+
+              nodes = doc.get('nodes') or []
+              node_names = {str(n.get('name')) for n in nodes if n.get('name')}
+              missing_bones = sorted(required_bones - node_names)
+              assert not missing_bones, f'{agent_id}: missing bones {missing_bones}'
+              assert doc.get('skins'), f'{agent_id}: no skin found'
+
+              animations = {str(a.get('name')) for a in (doc.get('animations') or []) if a.get('name')}
+              missing_anims = sorted(required_anims - animations)
+              assert not missing_anims, f'{agent_id}: missing animations {missing_anims}'
+
+              assert len(doc.get('materials') or []) <= limits['max_materials'], f'{agent_id}: too many materials'
+              assert len(doc.get('textures') or []) <= limits['max_textures'], f'{agent_id}: too many textures'
+              primitives = sum(len(m.get('primitives') or []) for m in (doc.get('meshes') or []))
+              assert primitives <= limits['max_mesh_primitives'], f'{agent_id}: too many mesh primitives'
+
+              scenes = doc.get('scenes') or []
+              scene_index = doc.get('scene', 0)
+              roots = scenes[scene_index].get('nodes', []) if scenes else []
+              tol_origin = limits['origin_tolerance_m']
+              tol_scale = limits['scale_tolerance']
+              for index in roots:
+                  node = nodes[index]
+                  translation = node.get('translation', [0, 0, 0])
+                  scale = node.get('scale', [1, 1, 1])
+                  assert math.sqrt(sum(float(v) ** 2 for v in translation)) <= tol_origin, f'{agent_id}: root origin outside tolerance'
+                  assert all(abs(float(v) - 1.0) <= tol_scale for v in scale), f'{agent_id}: root scale outside tolerance'
+
+              ymins, ymaxs = [], []
+              accessors = doc.get('accessors') or []
+              for mesh in doc.get('meshes') or []:
+                  for primitive in mesh.get('primitives') or []:
+                      pos = (primitive.get('attributes') or {}).get('POSITION')
+                      if pos is None or pos >= len(accessors):
+                          continue
+                      acc = accessors[pos]
+                      if isinstance(acc.get('min'), list) and len(acc['min']) >= 2:
+                          ymins.append(float(acc['min'][1]))
+                      if isinstance(acc.get('max'), list) and len(acc['max']) >= 2:
+                          ymaxs.append(float(acc['max'][1]))
+              if ymins and ymaxs:
+                  height = max(ymaxs) - min(ymins)
+                  assert limits['min_height_m'] <= height <= limits['max_height_m'], f'{agent_id}: height {height:.3f}m outside limits'
+
+              declared = set(validation.get('animations') or [])
+              if declared:
+                  assert required_anims <= declared, f'{agent_id}: validation metadata missing required animations'
+              print(f'GLB_OK={agent_id}:{path}')
+
+          for agent_id, asset in (manifest.get('assets') or {}).items():
+              validate_asset(agent_id, asset)
+          print('AGENCY_3D_ASSET_MANIFEST=OK')
+          PY
+
       - name: Validar cockpit financeiro persistente
         shell: bash
         run: |
           cd oficina/ads-ai-hub
           pytest -q tests/test_cockpit_finance.py
 
-      - name: Validar Model Router FREE-FIRST
+      - name: Validar Model Router FREE-FIRST e manifesto 3D
         shell: bash
         run: |
           cd oficina/ads-ai-hub
@@ -55,7 +164,7 @@ jobs:
           cd oficina/ads-ai-hub
           pytest -q
 
-      - name: Smoke test dos endpoints do cockpit, router e spend guard
+      - name: Smoke test dos endpoints do cockpit, router, spend guard e assets 3D
         shell: bash
         run: |
           cd oficina/ads-ai-hub
@@ -71,10 +180,13 @@ jobs:
           c=TestClient(app)
           h=c.get('/health'); assert h.status_code == 200
           p=c.get('/v1/autonomy/model-policy'); assert p.status_code == 200 and p.json()['mode'] == 'FREE-FIRST'
+          a=c.get('/v1/autonomy/asset-manifest'); assert a.status_code == 200 and a.json()['rig_profile'] == 'ads-humanoid-v1'
+          v=c.get('/v1/autonomy/visual-state'); assert v.status_code == 200 and all(x['model_url'] is None for x in v.json()['agents'])
           s=c.get('/v1/autonomy/ai-spend'); assert s.status_code == 200 and s.json()['free_first_enforced'] is True
           r=c.post('/v1/autonomy/ai-spend/check', json={'agent':'copywriter','provider':'paid','model':'premium','estimated_cost_brl':0.01,'auxiliary':True}); assert r.status_code == 409
           z=c.post('/v1/autonomy/ai-spend/check', json={'agent':'market_intelligence','provider':'qwen','model':'free','estimated_cost_brl':0,'auxiliary':True}); assert z.status_code == 200
           print('MODEL_ROUTER=OK')
+          print('AGENCY_3D_ASSETS=OK')
           print('AI_SPEND_GUARD=OK')
           print('AUX_BUDGET_ZERO=OK')
           PY
