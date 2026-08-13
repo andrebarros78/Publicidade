@@ -1,0 +1,33 @@
+name: Validate Real Agent Orchestrator
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/validate-real-agent-orchestrator.yml'
+      - 'oficina/ads-ai-hub/agentic/runtime/autonomous_team.py'
+      - 'oficina/ads-ai-hub/agentic/runtime/orchestrator.py'
+      - 'oficina/ads-ai-hub/app/main.py'
+      - 'oficina/ads-ai-hub/tests/test_real_orchestrator.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-orchestrator:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Instalar runtime
+        run: |
+          cd oficina/ads-ai-hub
+          python -m pip install -q -e '.[test]'
+      - name: Validar orquestrador sem chamada externa
+        run: |
+          cd oficina/ads-ai-hub
+          pytest -q tests/test_real_orchestrator.py
+      - name: Regressão completa
+        run: |
+          cd oficina/ads-ai-hub
+          pytest -q
