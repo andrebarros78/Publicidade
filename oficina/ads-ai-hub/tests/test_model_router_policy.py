@@ -38,6 +38,11 @@ def test_visual_state_does_not_release_unapproved_assets():
     assert all(agent['asset_status'] == 'pending' for agent in body['agents'])
 
 
+def test_realtime_sse_route_is_registered():
+    routes = {getattr(route, 'path', None) for route in app.routes}
+    assert '/v1/autonomy/events' in routes
+
+
 def test_system_primary_route_selects_openai():
     r = client.get('/v1/autonomy/model-route?system_primary=true')
     assert r.status_code == 200
