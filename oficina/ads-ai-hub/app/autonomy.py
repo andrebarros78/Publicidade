@@ -24,6 +24,26 @@ class RouteEvaluationIn(BaseModel):
     providers: list[ProviderReadiness] = Field(default_factory=list)
 
 
+VISUAL_POSTS = {
+    'chief_ads_officer': ('diretoria', 'director_desk', 'computer'),
+    'marketing_strategist': ('strategy', 'strategy_desk', 'computer'),
+    'market_intelligence': ('intelligence', 'market_station', 'computer'),
+    'consumer_intelligence': ('intelligence', 'consumer_station', 'computer'),
+    'product_portfolio': ('intelligence', 'portfolio_station', 'tablet'),
+    'performance_scientist': ('performance', 'performance_station', 'computer'),
+    'marketing_science': ('performance', 'mmm_station', 'computer'),
+    'attribution_specialist': ('performance', 'attribution_station', 'computer'),
+    'budget_allocator': ('budget', 'budget_station', 'computer'),
+    'experiment_scientist': ('lab', 'experiment_station', 'tablet'),
+    'creative_director': ('creative', 'creative_director_desk', 'tablet'),
+    'copywriter': ('creative', 'copywriter_desk', 'computer'),
+    'meta_media_buyer': ('paid_media', 'meta_station', 'computer'),
+    'tiktok_media_buyer': ('paid_media', 'tiktok_station', 'computer'),
+    'risk_guardian': ('risk', 'risk_station', 'tablet'),
+    'ads_operations': ('operations', 'operations_station', 'computer'),
+}
+
+
 def model_policy():
     return json.loads(POLICY_PATH.read_text(encoding='utf-8'))
 
@@ -84,6 +104,40 @@ def evaluate_model_route(data: RouteEvaluationIn):
 @router.get('/team')
 def team():
     return {'agents':[p.__dict__ for p in posts()], 'controls':owner_controls()}
+
+
+@router.get('/visual-state')
+def visual_state():
+    """Canonical visual state consumed by the 3D office.
+
+    Until the production task/event bus is attached, agents without an active
+    backend task are truthfully represented as REST instead of simulated work.
+    """
+    agents = []
+    for post in posts():
+        room, destination, tool = VISUAL_POSTS.get(post.id, ('rest', 'rest_seat', 'none'))
+        agents.append({
+            'agent_id': post.id,
+            'title': post.title,
+            'operational_state': 'rest',
+            'task_id': None,
+            'task_type': None,
+            'room': 'rest',
+            'home_room': room,
+            'destination': 'rest_seat',
+            'work_destination': destination,
+            'progress': 0,
+            'priority': 'normal',
+            'tool': 'none',
+            'work_tool': tool,
+            'updated_at': None,
+        })
+    return {
+        'contract_version': 'ads-agent-visual-state/v1',
+        'source': 'ads-ai-hub',
+        'task_bus_connected': False,
+        'agents': agents,
+    }
 
 
 @router.get('/model-policy')
