@@ -3,14 +3,17 @@ from app.core.models import ActionRequest, Platform
 from app.service import execute, health_all, list_campaigns
 from app.autonomy import router as autonomy_router
 from app.finance import router as cockpit_router, init_finance_store
+from app.ai_spend import router as ai_spend_router, init_ai_spend_store
 
-app = FastAPI(title="ADS-AI-HUB", version="0.3.0", description="API canônica multicanal com núcleo autônomo multiagente e cockpit financeiro persistente")
+app = FastAPI(title="ADS-AI-HUB", version="0.4.0", description="API canônica multicanal com núcleo autônomo, cockpit financeiro persistente e AI Spend Guard")
 app.include_router(autonomy_router)
 app.include_router(cockpit_router)
+app.include_router(ai_spend_router)
 
 @app.on_event("startup")
-def startup_finance_store():
+def startup_stores():
     init_finance_store()
+    init_ai_spend_store()
 
 @app.get("/health")
 async def health(): return await health_all()
