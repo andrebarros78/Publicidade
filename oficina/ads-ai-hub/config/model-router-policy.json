@@ -35,5 +35,32 @@
     "paid auxiliary routes are denied while FREE-FIRST is active",
     "system primary AI is replaceable through configuration",
     "secret values are resolved only by the vault layer"
-  ]
+  ],
+  "agency_3d_assets": {
+    "version": "ads-agency-3d-assets/v1",
+    "rig_profile": "ads-humanoid-v1",
+    "animation_contract": "ads-agent-animation/v1",
+    "required_bones": [
+      "Root", "Hips", "Spine", "Chest", "Neck", "Head",
+      "LeftArm", "LeftForeArm", "LeftHand",
+      "RightArm", "RightForeArm", "RightHand",
+      "LeftUpLeg", "LeftLeg", "LeftFoot",
+      "RightUpLeg", "RightLeg", "RightFoot"
+    ],
+    "required_animations": [
+      "Idle", "Walk", "Sit_Down", "Sit_Idle", "Stand_Up", "Working",
+      "Interact", "Use_Computer", "Use_Tablet", "Observe", "Repair", "Finish_Task"
+    ],
+    "limits": {
+      "max_file_mb": 12,
+      "max_materials": 24,
+      "max_textures": 24,
+      "max_mesh_primitives": 64,
+      "min_height_m": 0.8,
+      "max_height_m": 3.0,
+      "origin_tolerance_m": 0.05,
+      "scale_tolerance": 0.02
+    },
+    "assets": {}
+  }
 }
